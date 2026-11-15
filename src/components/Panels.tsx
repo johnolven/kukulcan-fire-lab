@@ -434,6 +434,10 @@ export function ConnectPanel() {
         <code className="mono block break-all border border-line px-3 py-2 text-[12px] text-accent">{url}</code>
         <div className="label mt-3">Voice server (short spoken answers)</div>
         <code className="mono block break-all border border-line px-3 py-2 text-[12px] text-accent">{origin}/api/voice/mcp</code>
+        <div className="label mt-3">Resources server (NASA and partner library)</div>
+        <code className="mono block break-all border border-line px-3 py-2 text-[12px] text-accent">{origin}/api/resources/mcp</code>
+        <div className="label mt-3">Orchestrator (one question across the servers)</div>
+        <code className="mono block break-all border border-line px-3 py-2 text-[12px] text-accent">{origin}/api/orchestrator/mcp</code>
         <div className="label mt-3">Add to Claude Code</div>
         <code className="mono block break-all border border-line px-3 py-2 text-[12px]">claude mcp add --transport http fire-lab {url}</code>
       </div>
@@ -451,7 +455,11 @@ export function ConnectPanel() {
               ["material_evidence", "What was tested for a material, or that it never was"],
               ["coverage_gaps", "Gap list and coverage grid"],
               ["list_files / get_file_link", "Documents and video, linked live from NASA PSI"],
+              ["build_chart / ask_chart", "Charts and tables computed on request"],
+              ["run_fire_scenario / fire_models", "Cabin fire simulator and published fire models"],
               ["consult_swarm", "Cited brief from the four agents"],
+              ["resources: search_resources, incident_lessons…", "Apollo 1, Apollo 13, Mir, Spinoff, JAXA, ESA"],
+              ["orchestrator: ask_lab", "One cited answer across every server"],
             ].map(([n, d]) => (
               <tr key={n}><td className="mono whitespace-nowrap text-[11.5px] text-accent">{n}</td><td className="text-dim">{d}</td></tr>
             ))}

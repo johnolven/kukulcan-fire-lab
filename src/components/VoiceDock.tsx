@@ -11,6 +11,7 @@ import { ENVIRONMENTS } from "@/lib/environments";
 import { COMBUSTION, label, materials } from "@/lib/lab";
 import { signal } from "@/lib/activity";
 import type { UiAction } from "@/lib/voiceTools";
+import { onVoiceToggle, voiceStore } from "@/lib/voiceStore";
 import { VoiceWave, type VoiceState } from "./VoiceWave";
 
 interface Line {
@@ -28,7 +29,7 @@ interface VoiceConfig {
   dataTools: { name: string; description: string; parameters: Record<string, unknown> }[];
 }
 
-const UI_TOOL_NAMES = ["show_environment", "set_atmosphere", "open_panel", "focus_investigation", "filter_tests", "write_brief"];
+const UI_TOOL_NAMES = ["show_environment", "set_atmosphere", "open_panel", "focus_investigation", "filter_tests", "write_brief", "build_chart", "play_video", "watch_nasa_video"];
 
 const ENV_WORDS: [RegExp, string][] = [
   [/\b(suit|spacesuit|traje)\b/i, "suit"],
@@ -41,7 +42,14 @@ const ENV_WORDS: [RegExp, string][] = [
 
 const VIEW_WORDS: [RegExp, string, string][] = [
   [/\b(fire|flame|fuego|flama)\b/i, "fire", ""],
+  [/\b(scenarios?|simulat(?:or|ion)|escenarios?|simulador|simulaci[oó]n)\b/i, "scenarios", "The fire scenario simulator is on the stage. Choose where the fire starts and what the crew does."],
+  [/\b(lab|laboratory|laboratorio|models?|modelos?)\b/i, "lab", "The fire-model lab is on the stage: five models running at this cabin's oxygen and pressure."],
+  [/\b(library|resources?|orchestrator|biblioteca|recursos|orquestador)\b/i, "ask", "The library and the orchestrator are on the stage. Ask one question across every source."],
+  [/\b(timeline|l[ií]nea de tiempo|cronolog[ií]a)\b/i, "timeline", "The timeline is on the stage: incidents, technology on Earth and the investigations since 1967."],
   [/\b(map|mapa)\b/i, "map", ""],
+  [/\b(voice|voz|asistente|assistant)\b/i, "voice", "The voice is on the stage."],
+  [/\b(3d|model|modelo|cabin|cabina|drawing|dibujo)\b/i, "environment", "The cabin is on the stage in full size. Drag it to turn it."],
+  [/\b(analytics|anal[ií]tica|dashboard|charts?|gr[aá]ficas?)\b/i, "analytics", "The analytics dashboard is on the stage. Describe a chart and it will be added."],
   [/\b(tables?|tests?|records?|tablas?|pruebas?|registros?)\b/i, "tests", "Test records are on the stage. Search them or download the CSV."],
   [/\b(investigations?|investigaciones|investigaci[oó]n)\b/i, "investigations", "All investigations are on the stage, scored for this design."],
   [/\b(materials|materiales)\b/i, "materials", "The materials NASA tested are on the stage."],
@@ -130,6 +138,32 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
       const press = text.match(/(\d+(?:\.\d+)?)\s*psi/i);
       const mat = materials().find((m) => text.toLowerCase().includes(m.material.split(" (")[0].toLowerCase().split(" ")[0]));
       const inv = COMBUSTION.find((i) => i.acronym && new RegExp(`(^|[^a-z0-9-])${label(i).replace(/[^a-z0-9]+/gi, "[^a-z0-9]*")}([^a-z0-9-]|$)`, "i").test(text));
+
+      // "chart ... / compare ... / gráfica de ...": build it on the analytics dashboard.
+      if (/\b(chart|graph|plot|compare|comparison|dashboard|gr[aá]fica|grafica|compara|comparar)\b/i.test(text) && text.split(/\s+/).length > 2) {
+        onAction({ tool: "build_chart", args: { request: text } });
+        setActivity("none");
+        return add("lab", "Building that chart on the analytics dashboard.");
+      }
+
+      // "play the BASS-II video", "video de FLEX": stream footage from NASA.
+      if (/\b(videos?|footage|grabaci[oó]n)\b/i.test(text)) {
+        if (/sciencecast|youtube|introduc/i.test(text)) {
+          onAction({ tool: "watch_nasa_video", args: {} });
+          setActivity("none");
+          return add("lab", "NASA's ScienceCasts video is open in the library.");
+        }
+        const withVideo = COMBUSTION.find((i) => i.acronym && new RegExp(`(^|[^a-z0-9-])${label(i).replace(/[^a-z0-9]+/gi, "[^a-z0-9]*")}([^a-z0-9-]|$)`, "i").test(text));
+        onAction({ tool: "play_video", args: { investigation: withVideo?.accession ?? "PSI-25", search: "" } });
+        setActivity("none");
+        return add("lab", `Playing footage from ${withVideo ? label(withVideo) : "BASS-II"}, streamed from NASA.`);
+      }
+
+      // History and background: answer from the library of NASA and partner resources.
+      if (/\b(apollo|mir\b|spinoff|firefighter|bombero|jaxa|esa\b|history|historia|lessons?|lecci[oó]n|lecciones)/i.test(text)) {
+        onAction({ tool: "open_panel", args: { panel: "ask" } });
+        return say(await callVoiceTool("search_library", { query: text }));
+      }
 
       // "show me the fire / the tables / the map ...": change the stage and say what it shows.
       const wanted = VIEW_WORDS.find(([re]) => re.test(text));
@@ -299,7 +333,18 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
   }
 
   const lastLab = [...lines].reverse().find((l) => l.who === "lab")?.text;
+  const lastYou = [...lines].reverse().find((l) => l.who === "you")?.text;
   const voiceState: VoiceState = activity !== "none" ? activity : call === "connecting" ? "connecting" : call === "live" ? "listening" : "idle";
+
+  // Publish the voice state so the large stage visualizer can follow it, and let it start or end the call.
+  useEffect(() => {
+    voiceStore.set({ state: voiceState, level, live: call === "live", available: Boolean(cfg?.publicKey), you: lastYou ?? "", lab: lastLab ?? "" });
+  }, [voiceState, level, call, cfg, lastYou, lastLab]);
+  const toggleRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    toggleRef.current = () => (call === "idle" ? startCall() : stopCall());
+  });
+  useEffect(() => onVoiceToggle(() => toggleRef.current()), []);
 
   return (
     <div className="panel flex flex-col p-3 shadow-[0_10px_40px_rgba(0,0,0,0.5)]" style={{ background: "rgba(6,12,20,0.96)" }}>
@@ -349,7 +394,7 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
       )}
 
       <div className="mt-2 flex flex-wrap gap-1">
-        {["Show the rover", "Show the fire", "Show the tables", "What about Nomex?", "What is missing?", "Explain BASS-II", "Show connections"].map((c) => (
+        {["Show the rover", "Show the fire", "Play a BASS-II video", "Show the timeline", "What did Apollo 1 teach us?", "Chart extinction by diluent gas", "What about Nomex?", "What is missing?"].map((c) => (
           <button key={c} className="mono border border-line px-1.5 py-0.5 text-[10px] text-dim transition-colors hover:border-accent hover:text-accent" onClick={() => command(c)}>
             {c}
           </button>

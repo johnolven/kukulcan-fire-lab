@@ -25,7 +25,9 @@ const NODES: Node[] = [
   { id: "table", x: 210, y: 176, w: 150, title: "Lab table", sub: "this page, in your browser" },
   { id: "voicemcp", x: 440, y: 60, w: 158, title: "Voice MCP", sub: "/api/voice/mcp · 7 tools" },
   { id: "agents", x: 440, y: 190, w: 158, title: "Swarm Mind analysts", sub: "prevention · detection · suppression · lead" },
-  { id: "research", x: 440, y: 318, w: 158, title: "Research MCP", sub: "/api/mcp · 11 tools" },
+  { id: "research", x: 440, y: 318, w: 158, title: "Research MCP", sub: "/api/mcp · records, models" },
+  { id: "orch", x: 440, y: 412, w: 158, title: "Orchestrator MCP", sub: "/api/orchestrator/mcp · ask_lab" },
+  { id: "resources", x: 676, y: 412, w: 150, title: "Resources MCP", sub: "NASA + JAXA + ESA library" },
   { id: "core", x: 676, y: 120, w: 150, title: "Query core", sub: "1,946 harmonized records" },
   { id: "claude", x: 676, y: 232, w: 150, title: "Language model", sub: "Claude · writes the brief" },
   { id: "psi", x: 876, y: 300, w: 150, title: "NASA PSI repository", sub: "psi.nasa.gov · 13.5 TB", tone: "nasa" },
@@ -60,7 +62,12 @@ const LINKS: Link[] = [
   { id: "research-core", d: curve(right(N.research), left(N.core)), label: "", lx: 0, ly: 0 },
   { id: "research-agents", d: `M${N.research.x + 79} ${N.research.y} L${N.agents.x + 79} ${N.agents.y + H}`, label: "consult_swarm", lx: 528, ly: 282 },
   { id: "research-psi", d: curve(right(N.research), left(N.psi)), label: "live file links", lx: 700, ly: 350 },
-  { id: "table-psi", d: `M${N.table.x + 40} ${N.table.y + H} C${N.table.x + 40} 420 ${N.psi.x + 75} 420 ${N.psi.x + 75} ${N.psi.y + H}`, label: "open a NASA file", lx: 560, ly: 408 },
+  { id: "clients-orch", d: curve([N.clients.x + N.clients.w, N.clients.y + 34], left(N.orch)), label: "one question", lx: 250, ly: 404 },
+  { id: "table-orch", d: `M${N.table.x + 110} ${N.table.y + H} C${N.table.x + 110} 330 360 435 ${N.orch.x} ${N.orch.y + H / 2}`, label: "ask the lab", lx: 330, ly: 300 },
+  { id: "orch-research", d: `M${N.orch.x + 79} ${N.orch.y} L${N.research.x + 79} ${N.research.y + H}`, label: "records, models", lx: 524, ly: 392 },
+  { id: "orch-resources", d: curve(right(N.orch), left(N.resources)), label: "library", lx: 618, ly: 428 },
+  { id: "orch-claude", d: `M${N.orch.x + 140} ${N.orch.y} C${N.orch.x + 140} 330 ${N.claude.x + 40} 330 ${N.claude.x + 40} ${N.claude.y + H}`, label: "decides + writes", lx: 610, ly: 300 },
+  { id: "table-psi", d: `M${N.table.x + 40} ${N.table.y + H} C${N.table.x + 40} 500 ${N.psi.x + 75} 500 ${N.psi.x + 75} ${N.psi.y + H}`, label: "open a NASA file", lx: 250, ly: 478 },
 ];
 
 interface Pulse {
@@ -146,11 +153,11 @@ export function SystemMap() {
       </div>
 
       <div className="scroll">
-        <svg viewBox="0 0 1040 440" className="w-full min-w-[820px]" role="img" aria-label="Diagram of how the voice assistant, the lab page, the two MCP servers, the analysts and the NASA PSI repository connect">
+        <svg viewBox="0 0 1040 500" className="w-full min-w-[820px]" role="img" aria-label="Diagram of how the voice assistant, the lab page, the two MCP servers, the analysts and the NASA PSI repository connect">
           {/* zones */}
           <rect x={196} y={12} width={178} height={228} fill="none" stroke="var(--line)" strokeDasharray="3 5" />
           <text x={204} y={26} fontSize={8.5} letterSpacing={1.4} fill="var(--ink-faint)" className="mono">CLIENT</text>
-          <rect x={426} y={36} width={414} height={346} fill="none" stroke="var(--line)" strokeDasharray="3 5" />
+          <rect x={426} y={36} width={414} height={436} fill="none" stroke="var(--line)" strokeDasharray="3 5" />
           <text x={434} y={50} fontSize={8.5} letterSpacing={1.4} fill="var(--ink-faint)" className="mono">KUKULCAN FIRE LAB SERVER</text>
 
           {/* dataset provenance: built offline from NASA's tables */}
@@ -159,6 +166,9 @@ export function SystemMap() {
             <tspan x={868} dy={0}>BUILT FROM NASA TABLES</tspan>
             <tspan x={868} dy={11}>(HARMONIZED OFFLINE)</tspan>
           </text>
+
+          <path d={`M${N.psi.x + 40} ${N.psi.y + H} C${N.psi.x + 40} 440 ${N.resources.x + N.resources.w + 40} 435 ${N.resources.x + N.resources.w} ${N.resources.y + H / 2}`} fill="none" stroke="var(--warn)" strokeWidth={1} strokeDasharray="5 4" opacity={0.75} />
+          <text x={846} y={452} fontSize={8.5} letterSpacing={1} fill="var(--warn)" className="mono">NASA + PARTNER PAGES</text>
 
           {/* links */}
           {LINKS.map((l) => {

@@ -16,7 +16,12 @@ export type LinkId =
   | "clients-research"
   | "research-core"
   | "research-agents"
-  | "research-psi";
+  | "research-psi"
+  | "table-orch"
+  | "clients-orch"
+  | "orch-research"
+  | "orch-resources"
+  | "orch-claude";
 
 const EVENT = "firelab:activity";
 

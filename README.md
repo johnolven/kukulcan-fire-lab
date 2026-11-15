@@ -22,7 +22,9 @@ The lab reports what was tested. It never certifies a material or design as safe
 
 | Server | Path | Use |
 |---|---|---|
-| Research | `/api/mcp` | 11 tools: `lab_overview`, `search_investigations`, `get_investigation`, `query_tests`, `evidence_for_design`, `rank_investigations`, `material_evidence`, `coverage_gaps`, `list_files`, `get_file_link`, `consult_swarm` |
+| Research | `/api/mcp` | 15 tools: `lab_overview`, `search_investigations`, `get_investigation`, `query_tests`, `evidence_for_design`, `rank_investigations`, `material_evidence`, `coverage_gaps`, `list_files`, `get_file_link`, `run_fire_scenario`, `fire_models`, `build_chart`, `ask_chart`, `consult_swarm` |
+| Resources | `/api/resources/mcp` | 6 tools over the challenge's NASA resources (PSI, Combustion Science, Researcher's Guide, Apollo 1, Apollo 13, Mir fire, three Spinoff articles) and partner-agency links (JAXA FLARE, JAXA Kibo leaflet, Saffire on eoPortal): `list_resources`, `search_resources`, `get_resource`, `incident_lessons`, `earth_benefits`, `partner_agencies` |
+| Orchestrator | `/api/orchestrator/mcp` | `ask_lab`: one question, one cited answer; Claude decides which tools of the records and resources servers to call and returns the trace. `list_servers` |
 | Voice | `/api/voice/mcp` | 7 tools that return one short spoken answer each |
 
 Both speak MCP Streamable HTTP (stateless JSON). Example: `claude mcp add --transport http fire-lab https://<host>/api/mcp`

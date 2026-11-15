@@ -2,6 +2,10 @@
 // Code generated with SI assistance (Claude Code).
 
 import { agentRoster, resolveDesign, runSwarm } from "./agents";
+import { AGGREGATES, CATEGORY_FIELDS, CHART_TYPES, NUMBER_FIELDS, describeResult, runSpec, type ChartSpec } from "./analytics";
+import { specFromQuestion } from "./analyticsModel";
+import * as FM from "./fireModels";
+import { MODEL_NOTE, PLANS, ZONES, compareResponses, detectionLimit, runScenario, summarize, LEVELS, type ScenarioInput, type ZoneId } from "./scenario";
 import { ENVIRONMENTS } from "./environments";
 import {
   COMBUSTION,
@@ -219,6 +223,116 @@ export const RESEARCH_TOOLS: McpTool[] = [
       if (!i) return { error: `No investigation matches "${a.investigation}".` };
       const r = await fileLink(i.accession, str(a.file_name) ?? "");
       return "error" in r ? r : { url: r.url, size: prettyBytes(r.file.b), expires: "Link is temporary; request a new one if it stops working." };
+    },
+  },
+  {
+    name: "run_fire_scenario",
+    description:
+      "Simulate a fire in a sealed crew module and report what happens to the crew over ten minutes: fire size, oxygen, carbon monoxide, temperature, pressure, events and outcome. Also ranks the standard crew responses and gives the latest detection time that keeps the crew within every limit. This is a simplified engineering model with stated assumptions, separate from the PSI test records; it compares decisions and certifies nothing.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...designProps,
+        zone: { type: "string", enum: Object.keys(ZONES), description: "Where the fire starts." },
+        detection_s: { type: "number", description: "Seconds until the fire is detected (10-300). Default 60." },
+        gravity_g: { type: "number", description: "0 for microgravity, 0.17 Moon, 0.38 Mars, 1 Earth. Defaults by environment." },
+        ventilation_off: { type: "boolean" },
+        extinguisher: { type: "boolean" },
+        masks: { type: "boolean" },
+        leave_module: { type: "boolean" },
+        nitrogen_flood: { type: "boolean" },
+        relief_valve: { type: "boolean", description: "Default true." },
+      },
+    },
+    handler: (a) => {
+      const { env, o2, psi } = resolveDesign({ environment: str(a.environment), o2_pct: numArg(a.o2_pct), pressure_psi: numArg(a.pressure_psi) });
+      const zone = (Object.keys(ZONES).includes(str(a.zone) ?? "") ? str(a.zone) : "cabin") as ZoneId;
+      const input: ScenarioInput = {
+        p0_kpa: psi * 6.895,
+        x0: o2 / 100,
+        g: numArg(a.gravity_g) ?? (env && ["base", "rover"].includes(env.id) ? 0.17 : 0),
+        zone,
+        det: Math.min(300, Math.max(10, numArg(a.detection_s) ?? 60)),
+        relief: a.relief_valve !== false,
+        fan: a.ventilation_off === true,
+        ext: a.extinguisher === true,
+        mask: a.masks === true,
+        leave: a.leave_module === true,
+        inert: a.nitrogen_flood === true,
+      };
+      const r = runScenario(input);
+      return {
+        ...summarize(input, r),
+        latest_safe_detection_s: detectionLimit(input),
+        responses_ranked: compareResponses(input).map(({ plan, result }) => ({ response: plan.name, outcome: LEVELS[result.level], peak_fire_kw: +result.peak.toFixed(0), co_breathed_ppm: Math.round(result.crew.maxCO) })),
+        standard_responses: PLANS.map((p) => p.name),
+        model: MODEL_NOTE,
+      };
+    },
+  },
+  {
+    name: "fire_models",
+    description:
+      "Evaluate the lab's published fire models at a design atmosphere: thin-fuel flammability limit and flame spread rate for an airflow, Earth-test versus orbit margin, test burn probability, NASA CEA flame temperature, and droplet burning with cool flames. Models with stated assumptions, separate from the PSI test records.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...designProps,
+        airflow_cm_s: { type: "number", description: "Airflow at the flame, default 10." },
+        fuel_half_thickness_mm: { type: "number", description: "Default 0.1." },
+        material_limit_earth_pct: { type: "number", description: "Oxygen limit of the material in the Earth test (MOC), default 30." },
+        orbit_shift_pts: { type: "number", description: "How many oxygen points lower the limit is in orbit, 0-4, default 4." },
+        scatter_pts: { type: "number", description: "Scatter between samples in oxygen points, default 1." },
+        droplet_mm: { type: "number", description: "Initial heptane droplet diameter, default 3." },
+      },
+    },
+    handler: (a) => {
+      const { o2, psi } = resolveDesign({ environment: str(a.environment), o2_pct: numArg(a.o2_pct), pressure_psi: numArg(a.pressure_psi) });
+      const x = o2 / 100, kpa = psi * 6.895;
+      const u = numArg(a.airflow_cm_s) ?? 10, tau = numArg(a.fuel_half_thickness_mm) ?? 0.1;
+      const moc = numArg(a.material_limit_earth_pct) ?? 30, shift = numArg(a.orbit_shift_pts) ?? 4, sc = numArg(a.scatter_pts) ?? 1;
+      const d = FM.droplet(numArg(a.droplet_mm) ?? 3, x);
+      const r = (v: number, n = 2) => +v.toFixed(n);
+      return {
+        design: { o2_pct: o2, pressure_psi: psi },
+        flammability_map: { airflow_cm_s: u, oxygen_limit_pct: r(100 * FM.xlim(u)), burns: x > FM.xlim(u), spread_rate_mm_s: r(FM.spread(x, u, tau)), buoyant_flow_cm_s: { moon: r(FM.ubuoy(0.17), 1), mars: r(FM.ubuoy(0.38), 1), earth: r(FM.ubuoy(1), 1) }, source: FM.SOURCES.map },
+        earth_test_vs_orbit: { ...FM.margin(moc, o2, shift), source: FM.SOURCES.margin },
+        test_probability: { chance_one_sample_burns: r(FM.pburn(o2, moc, sc), 3), oxygen_for_50pct: r(FM.uloi(moc, sc)), oxygen_for_5pct: r(FM.x05(moc, sc)), source: FM.SOURCES.test },
+        flame_temperature: { methane_K: Math.round(FM.ceaT("CH4", x, kpa)), ethylene_K: Math.round(FM.ceaT("C2H4", x, kpa)), methane_in_sea_level_air_K: Math.round(FM.ceaT("CH4", 0.21, 101.3)), clamped: x < 0.15 || x > 0.4 || kpa < 30 || kpa > 101.3, source: FM.SOURCES.flame },
+        droplet: { burning_constant_mm2_s: r(d.K, 3), total_life_s: r(d.T, 1), cool_flame: d.ph.some((p) => p.k === "cool"), phases: d.ph.map((p) => ({ phase: p.k, from_s: r(p.t0, 1), to_s: r(p.t1, 1) })), source: FM.SOURCES.droplet },
+      };
+    },
+  },
+  {
+    name: "build_chart",
+    description:
+      "Compute a chart or table from the harmonized records with an explicit specification. Returns the aggregated numbers, so a client can render or reason over them. bar/table: x is a category or a number field (binned); aggregate is count, mean/median/min/max (need y), or share_extinguished. scatter: x and y are number fields. group_by splits into series.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        chart: { type: "string", enum: [...CHART_TYPES] },
+        x: { type: "string", enum: [...CATEGORY_FIELDS, ...NUMBER_FIELDS] },
+        y: { type: "string", enum: [...NUMBER_FIELDS] },
+        aggregate: { type: "string", enum: [...AGGREGATES] },
+        group_by: { type: "string", enum: [...CATEGORY_FIELDS] },
+        filters: {
+          type: "object",
+          properties: { investigation: { type: "string" }, phase: { type: "string" }, material: { type: "string" }, fuel: { type: "string" }, diluent: { type: "string" }, outcome: { type: "string" }, o2_min: { type: "number" }, o2_max: { type: "number" } },
+        },
+      },
+      required: ["chart", "x"],
+    },
+    handler: (a) => describeResult(runSpec({ ...(a as unknown as ChartSpec), title: str(a.title) ?? "Chart" })),
+  },
+  {
+    name: "ask_chart",
+    description:
+      "Describe a chart or table in plain language; the lab's language model turns it into a specification and code computes the numbers from the harmonized records. Returns the specification used and the aggregated numbers.",
+    inputSchema: { type: "object", properties: { request: { type: "string" } }, required: ["request"] },
+    handler: async (a) => {
+      const { spec, by, reason } = await specFromQuestion(str(a.request) ?? "records by oxygen level and fuel type");
+      return { specification_by: by, reason: reason ?? null, specification: spec, ...describeResult(runSpec(spec)) };
     },
   },
   {

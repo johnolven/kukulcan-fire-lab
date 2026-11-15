@@ -14,6 +14,7 @@ import { resolveDesign, runSwarm } from "./agents";
 import { ENVIRONMENTS } from "./environments";
 import { describeTest, gaps, getInvestigation, label, materialEvidence, materials, nearestTests, rankInvestigations, stats } from "./lab";
 import { numArg, str, type McpTool } from "./mcp";
+import { searchLibrary } from "./resources";
 import { PSI_PER_ATM } from "./types";
 
 const designProps = {
@@ -98,6 +99,17 @@ export const VOICE_MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: "search_library",
+    description: "Look up history and background in the library of NASA and partner-agency resources: Apollo 1, Apollo 13, the Mir fire, how the station's combustion facilities work, technology that reached Earth (firefighter gear, smoke detector), JAXA's FLARE. Returns the best passage to say aloud.",
+    inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
+    handler: (a) => {
+      const hits = searchLibrary(str(a.query) ?? "", { limit: 2 });
+      if (!hits.length) return { say: "The library has nothing on that. It covers Apollo 1, Apollo 13, the Mir fire, the station's combustion research, the Spinoff articles and JAXA's FLARE." };
+      const t = hits[0].passage.text;
+      return { say: `From ${hits[0].resource.title}: ${t.length > 420 ? `${t.slice(0, t.lastIndexOf(". ", 420) + 1 || 420)}` : t}`, cite: hits[0].passage.id, also: hits[1] ? hits[1].resource.title : null };
+    },
+  },
+  {
     name: "lab_numbers",
     description: "Spoken headline numbers of the dataset.",
     inputSchema: { type: "object", properties: {} },
@@ -144,8 +156,8 @@ export const UI_TOOLS = [
   {
     name: "open_panel",
     description:
-      "Change what the centre stage of the lab shows. fire = the flame and what nearby tests did; map = evidence map of every test by oxygen and pressure; investigations = table of investigations; tests = table of test records; materials = materials table; gaps = what is untested; brief = the analysts; connections = diagram of how the voice, the MCP servers and NASA connect.",
-    parameters: { type: "object", properties: { panel: { type: "string", enum: ["fire", "map", "investigations", "tests", "materials", "gaps", "brief", "connections"] } }, required: ["panel"] },
+      "Change what the centre stage of the lab shows. fire = the flame and what nearby tests did; ask = the orchestrator and the library of NASA and partner-agency resources (Apollo 1, Apollo 13, Mir, Spinoff, JAXA); videos = footage of the experiments streamed from NASA; timeline = incidents, Earth technology and investigations since 1967; scenarios = the cabin fire simulator where a fire starts and the crew responds; lab = five published fire models (flammability map, Earth test versus orbit, test probability, flame temperature, burning droplet); environment = the 3D model of the cabin in full size with its facts; analytics = the dashboard of charts built on request; voice = the large voice visualizer; map = evidence map of every test by oxygen and pressure; investigations = table of investigations; tests = table of test records; materials = materials table; gaps = what is untested; brief = the analysts; connections = diagram of how the voice, the MCP servers and NASA connect.",
+    parameters: { type: "object", properties: { panel: { type: "string", enum: ["fire", "ask", "videos", "timeline", "scenarios", "lab", "environment", "analytics", "voice", "map", "investigations", "tests", "materials", "gaps", "brief", "connections"] } }, required: ["panel"] },
   },
   {
     name: "focus_investigation",
@@ -156,6 +168,21 @@ export const UI_TOOLS = [
     name: "filter_tests",
     description: "Filter the test table and the map by fuel phase and/or material text. Pass empty strings to clear.",
     parameters: { type: "object", properties: { phase: { type: "string", enum: ["", "solid", "liquid", "gas", "smoke"] }, material: { type: "string" } } },
+  },
+  {
+    name: "play_video",
+    description: "Play footage of an experiment, streamed from NASA's repository. Give the investigation (BASS-II, BASS, FLEX, CFI, SPICE, SLICE, SAME-R, ACME BRE, ACME CLD Flame, ACME E-FIELD Flames, ACME s-Flame) and optionally words from the file name such as a sample or test id.",
+    parameters: { type: "object", properties: { investigation: { type: "string" }, search: { type: "string" } }, required: ["investigation"] },
+  },
+  {
+    name: "watch_nasa_video",
+    description: "Show NASA's ScienceCasts video 'The Power of Studying Combustion on the ISS' inside the library. Use when the user asks for the NASA video or an introduction to combustion on the station.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "build_chart",
+    description: "Add a chart or table to the analytics dashboard, built from the NASA records. Pass the user's request in plain words, for example 'extinction rate by diluent gas in FLEX' or 'burn time against oxygen for droplets'. Use it whenever the user asks for a chart, graph, comparison, table of numbers or dashboard.",
+    parameters: { type: "object", properties: { request: { type: "string" } }, required: ["request"] },
   },
   {
     name: "write_brief",
@@ -170,8 +197,11 @@ export function voiceSystemPrompt(): string {
 How to work:
 - The lab table is on the user's screen. When they name an environment, call show_environment and then check_design, and tell them what the evidence says. When they give numbers, call set_atmosphere and then check_design with the same numbers.
 - For a material, call check_material and open_panel with materials. For an investigation, call focus_investigation and explain_investigation. For "what is missing", call name_the_gaps and open_panel with gaps.
-- The centre stage shows one view at a time and the page never scrolls. Whenever the user asks to see something, call open_panel so it appears: fire or flame -> fire; the map -> map; tables, tests or records -> tests; investigations -> investigations; materials -> materials; how it connects, nodes or MCP -> connections. After showing an environment or changing the atmosphere, open fire unless they asked for another view.
-- Data tools (check_design, check_material, explain_investigation, rank_for_design, name_the_gaps, lab_numbers, swarm_brief) answer a moment later in a system message that starts with "LAB RESULT". After calling one, say at most "One moment" and stop. When the LAB RESULT arrives, speak its "say" text in your own words, under four sentences, reading numbers naturally.
+- The centre stage shows one view at a time and the page never scrolls. Whenever the user asks to see something, call open_panel so it appears: fire or flame -> fire; the map -> map; tables, tests or records -> tests; investigations -> investigations; materials -> materials; how it connects, nodes or MCP -> connections. the cabin, the model or 3D -> environment; a simulation, a scenario or 'what if a fire starts' -> scenarios; fire models, the flammability map, flame temperature or the lab -> lab. After showing an environment or changing the atmosphere, open fire unless they asked for another view.
+- For history or background (Apollo 1, Apollo 13, Mir, how NASA technology reached Earth, other agencies), call search_library and open_panel with ask.
+- To show footage of an experiment, call play_video. For NASA's introduction video, call watch_nasa_video. For dates and history at a glance, open_panel with timeline.
+- For a chart, graph, comparison or dashboard, call build_chart with the request in plain words and say the chart is on the stage. You cannot see the chart, so do not describe its numbers.
+- Data tools (check_design, check_material, explain_investigation, rank_for_design, name_the_gaps, lab_numbers, swarm_brief, search_library) answer a moment later in a system message that starts with "LAB RESULT". After calling one, say at most "One moment" and stop. When the LAB RESULT arrives, speak its "say" text in your own words, under four sentences, reading numbers naturally.
 - If a LAB RESULT has not arrived, do not guess and do not say the lab has no information. Wait for it.
 - Only state figures that came from a tool. If a tool says something was never tested, say exactly that.
 - Never say a material or design is safe. Say what was tested and what was not. Above the tested oxygen range, call it extrapolation.

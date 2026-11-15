@@ -4,7 +4,7 @@
 // click), and the ranking plus the voice console sit on the right.
 // Code generated with SI assistance (Claude Code).
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Brief } from "@/lib/agents";
 import { signal } from "@/lib/activity";
 import { ENVIRONMENTS, environmentById } from "@/lib/environments";
@@ -12,18 +12,34 @@ import { TESTS, gaps as computeGaps, getInvestigation, label, nearestTests, quer
 import type { FileEntry } from "@/lib/types";
 import { PSI_PER_ATM } from "@/lib/types";
 import type { UiAction } from "@/lib/voiceTools";
+import { AnalyticsView, requestChart } from "./AnalyticsView";
 import { EnvironmentDrawing } from "./Diagrams";
 import { EvidenceMap } from "./EvidenceMap";
 import { FlameBench } from "./FlameBench";
 import { FloatingDock } from "./FloatingDock";
+import { LabView } from "./LabView";
+import { LibraryView, requestAsk, requestWatch } from "./LibraryView";
+import { EnvironmentModel } from "./Models3D";
 import { BriefPanel, ConnectPanel, GapsPanel, InvestigationDetail, InvestigationsTable, MaterialsTable, Ranking, TestsTable } from "./Panels";
+import { ScenarioView } from "./ScenarioView";
 import { SystemMap } from "./SystemMap";
+import { TimelineView } from "./TimelineView";
+import { VideosView, requestVideo } from "./VideosView";
 import { VoiceDock } from "./VoiceDock";
+import { VoiceStage } from "./VoiceStage";
 
-export type View = "fire" | "map" | "investigations" | "tests" | "materials" | "gaps" | "brief" | "connect" | "detail";
+export type View = "fire" | "ask" | "videos" | "timeline" | "scenarios" | "lab" | "environment" | "analytics" | "voice" | "map" | "investigations" | "tests" | "materials" | "gaps" | "brief" | "connect" | "detail";
 
 const VIEWS: [View, string, string][] = [
   ["fire", "Fire", "What happens to a flame in this cabin"],
+  ["ask", "Ask + Library", "One question across every server, and the NASA and partner library"],
+  ["videos", "Videos", "Footage of the experiments, streamed from NASA"],
+  ["timeline", "Timeline", "Incidents, Earth technology and investigations since 1967"],
+  ["scenarios", "Scenarios", "A fire starts: what the crew does and what happens to them"],
+  ["lab", "Lab", "A live cabin with flame and smoke, and five fire models"],
+  ["environment", "Environment", "The cabin on the table, in full size"],
+  ["analytics", "Analytics", "Charts and tables built as you ask"],
+  ["voice", "Voice", "The lab voice at full size"],
   ["map", "Evidence map", "Has anyone tested an atmosphere like this?"],
   ["investigations", "Investigations", "All combustion investigations, scored for this design"],
   ["tests", "Test records", "Every harmonized record, searchable, with CSV download"],
@@ -36,6 +52,14 @@ const VIEWS: [View, string, string][] = [
 // Words a person might use for each view, in English or Spanish.
 const VIEW_ALIASES: Record<string, View> = {
   fire: "fire", flame: "fire", bench: "fire", fuego: "fire", flama: "fire",
+  environment: "environment", model: "environment", "3d": "environment", cabin: "environment", entorno: "environment", ambiente: "environment", modelo: "environment", nave: "environment", dibujo: "environment",
+  scenarios: "scenarios", scenario: "scenarios", simulator: "scenarios", simulation: "scenarios", escenarios: "scenarios", escenario: "scenarios", simulador: "scenarios", "simulación": "scenarios", simulacion: "scenarios",
+  ask: "ask", library: "ask", resources: "ask", orchestrator: "ask", biblioteca: "ask", recursos: "ask", orquestador: "ask", apollo: "ask", history: "ask", historia: "ask",
+  videos: "videos", video: "videos", footage: "videos",
+  timeline: "timeline", "línea de tiempo": "timeline", cronologia: "timeline", "cronología": "timeline",
+  lab: "lab", laboratory: "lab", models: "lab", laboratorio: "lab", modelos: "lab",
+  voice: "voice", voz: "voice", assistant: "voice", asistente: "voice",
+  analytics: "analytics", dashboard: "analytics", charts: "analytics", chart: "analytics", analitica: "analytics", "analítica": "analytics", graficas: "analytics", "gráficas": "analytics",
   map: "map", mapa: "map", evidence: "map", ranking: "map",
   investigations: "investigations", investigaciones: "investigations",
   tests: "tests", tables: "tests", table: "tests", records: "tests", tablas: "tests", pruebas: "tests",
@@ -44,6 +68,39 @@ const VIEW_ALIASES: Record<string, View> = {
   brief: "brief", analysts: "brief", analistas: "brief", informe: "brief",
   connect: "connect", connections: "connect", conexiones: "connect", nodes: "connect", nodos: "connect",
 };
+
+const clampCol = (w: number) => Math.min(620, Math.max(200, Math.round(w)));
+
+function Resizer({ label: name, width, direction, fallback, onChange, onCommit }: { label: string; width: number; direction: 1 | -1; fallback: number; onChange: (w: number) => void; onCommit: () => void }) {
+  const drag = useRef<{ x: number; start: number } | null>(null);
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={name}
+      title="Drag to resize · double-click to reset"
+      className="group hidden cursor-col-resize touch-none select-none items-center justify-center lg:flex"
+      onPointerDown={(e) => {
+        drag.current = { x: e.clientX, start: width };
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        if (drag.current) onChange(clampCol(drag.current.start + (e.clientX - drag.current.x) * direction));
+      }}
+      onPointerUp={() => {
+        if (!drag.current) return;
+        drag.current = null;
+        onCommit();
+      }}
+      onDoubleClick={() => {
+        onChange(fallback);
+        onCommit();
+      }}
+    >
+      <span className="h-12 w-[3px] rounded-full bg-white/15 transition-colors group-hover:bg-accent group-active:bg-accent" />
+    </div>
+  );
+}
 
 const PHASES: [PhaseGroup, string][] = [
   ["solid", "Solid materials"],
@@ -61,6 +118,31 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
   const [view, setView] = useState<View>("fire");
   const [brief, setBrief] = useState<Brief | null>(null);
   const [briefLoading, setBriefLoading] = useState(false);
+  const [drawing, setDrawing] = useState<"3d" | "2d">("3d");
+
+  // Side columns: drag the bar between a column and the stage to resize it.
+  const [cols, setCols] = useState({ left: 292, right: 350 });
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      try {
+        const saved = JSON.parse(window.localStorage.getItem("firelab:cols") ?? "null");
+        if (saved && typeof saved.left === "number" && typeof saved.right === "number") setCols({ left: clampCol(saved.left), right: clampCol(saved.right) });
+      } catch {
+        /* keep defaults */
+      }
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, []);
+  const saveCols = useCallback(() => {
+    setCols((c) => {
+      try {
+        window.localStorage.setItem("firelab:cols", JSON.stringify(c));
+      } catch {
+        /* ignore */
+      }
+      return c;
+    });
+  }, []);
 
   const env = ENVIRONMENTS.find((e) => e.id === envId)!;
   const custom = env.o2_pct !== o2 || env.pressure_psi !== psi;
@@ -163,6 +245,21 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
           setPhase(s(a.args.phase));
           setMaterial(s(a.args.material));
           break;
+        case "play_video": {
+          setView("videos");
+          requestVideo(s(a.args.investigation), s(a.args.search));
+          break;
+        }
+        case "watch_nasa_video":
+          setView("ask");
+          requestWatch();
+          break;
+        case "build_chart": {
+          const request = s(a.args.request);
+          setView("analytics");
+          if (request) requestChart(request);
+          break;
+        }
         case "write_brief":
           setView("brief");
           runBrief(s(a.args.question) || "What does the evidence say about fire safety for this design?", false);
@@ -202,7 +299,10 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
         </dl>
       </header>
 
-      <div className="mt-2 grid min-h-0 flex-1 gap-2 lg:grid-cols-[292px_minmax(0,1fr)_350px] lg:grid-rows-[minmax(0,1fr)]">
+      <div
+        className="mt-2 grid min-h-0 flex-1 gap-y-2 lg:grid-cols-[var(--lw)_10px_minmax(0,1fr)_10px_var(--rw)] lg:grid-rows-[minmax(0,1fr)]"
+        style={{ "--lw": `${cols.left}px`, "--rw": `${cols.right}px` } as React.CSSProperties}
+      >
         {/* left: the environment on the table, always visible */}
         <aside className="panel scroll flex min-h-0 flex-col p-3" style={{ overflowX: "hidden" }}>
           <div className="label">Environment on the table</div>
@@ -214,7 +314,23 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
               </button>
             ))}
           </div>
-          <EnvironmentDrawing id={envId} className="mt-1 min-h-[110px] w-full flex-1 text-ink" />
+          <div className="relative mt-1 flex min-h-[130px] flex-1 flex-col">
+            <div className="absolute right-0 top-0 z-10 flex gap-1" role="tablist" aria-label="Drawing type">
+              {(["3d", "2d"] as const).map((d) => (
+                <button key={d} role="tab" aria-selected={drawing === d} className={`btn !px-2 !py-0.5 !text-[10px] ${drawing === d ? "on" : ""}`} onClick={() => setDrawing(d)}>
+                  {d.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            {drawing === "3d" ? (
+              <>
+                <EnvironmentModel id={envId} className="min-h-0 w-full flex-1" />
+                <span className="mono pointer-events-none absolute bottom-0 left-0 text-[8.5px] uppercase tracking-[0.14em] text-faint">Drag to turn</span>
+              </>
+            ) : (
+              <EnvironmentDrawing id={envId} className="min-h-0 w-full flex-1 text-ink" />
+            )}
+          </div>
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-[15px] font-medium">{env.name}</span>
             <span className="label text-right">{env.gravity}</span>
@@ -239,6 +355,8 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
             </div>
           </div>
         </aside>
+
+        <Resizer label="Resize the environment panel" width={cols.left} direction={1} fallback={292} onChange={(w) => setCols((c) => ({ ...c, left: w }))} onCommit={saveCols} />
 
         {/* centre: verdict + the stage */}
         <main className="flex min-h-0 min-w-0 flex-col gap-2">
@@ -273,6 +391,66 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
             </nav>
 
             <div className="scroll stage min-h-0 flex-1 p-3" role="tabpanel">
+              {view === "environment" && (
+                <div className="grid h-full min-h-[420px] gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(260px,1fr)]">
+                  <div className="relative min-h-[300px] border border-line">
+                    <div className="absolute right-2 top-2 z-10 flex gap-1" role="tablist" aria-label="Drawing type">
+                      {(["3d", "2d"] as const).map((d) => (
+                        <button key={d} role="tab" aria-selected={drawing === d} className={`btn !px-2 !py-0.5 !text-[10px] ${drawing === d ? "on" : ""}`} onClick={() => setDrawing(d)}>{d.toUpperCase()}</button>
+                      ))}
+                    </div>
+                    {drawing === "3d" ? <EnvironmentModel id={envId} className="absolute inset-0" /> : <EnvironmentDrawing id={envId} className="absolute inset-0 h-full w-full p-6 text-ink" />}
+                    <span className="mono pointer-events-none absolute bottom-2 left-2 text-[9px] uppercase tracking-[0.14em] text-faint">{drawing === "3d" ? "Drag to turn · schematic, not to scale" : "Schematic, not to scale"}</span>
+                  </div>
+                  <div className="min-w-0 space-y-3">
+                    <div>
+                      <div className="label">{env.gravity}</div>
+                      <h2 className="text-[20px] font-medium leading-tight">{env.name}</h2>
+                      <p className="mt-1 text-[13px] leading-relaxed text-dim">{env.concern}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><div className="label">Oxygen</div><div className="mono text-[20px]">{o2}%</div></div>
+                      <div><div className="label">Pressure</div><div className="mono text-[20px]">{psi} psi</div></div>
+                    </div>
+                    <p className="text-[11.5px] leading-snug text-dim">{custom ? "Custom atmosphere: you moved it away from the preset." : env.basisNote}</p>
+                    <div>
+                      <div className="label mb-1">Most relevant investigations here</div>
+                      {ranked.slice(0, 4).map((r) => (
+                        <button key={r.investigation.accession} className="flex w-full items-baseline gap-2 border-b border-line py-1 text-left text-[12.5px] hover:text-accent" onClick={() => openInvestigation(r.investigation.accession)}>
+                          <span className="font-medium">{label(r.investigation)}</span>
+                          <span className="min-w-0 flex-1 truncate text-[11.5px] text-dim">{r.investigation.focus}</span>
+                          <span className="mono text-accent">{r.score}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div>
+                      <div className="label mb-1">What is untested for this cabin</div>
+                      {gapList.slice(0, 3).map((g) => (
+                        <div key={g.title} className="mb-1 border-l-2 pl-2 text-[12.5px] leading-snug" style={{ borderColor: g.severity === "critical" ? "var(--danger)" : "var(--warn)" }}>{g.title}</div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {view === "scenarios" && <ScenarioView o2={o2} psi={psi} defaultGravity={envId === "base" || envId === "rover" ? 0.17 : 0} />}
+              {/* Kept mounted so an answer in progress is not lost when the view changes. */}
+              <div hidden={view !== "ask"}>
+                <LibraryView o2={o2} psi={psi} />
+              </div>
+              {/* Kept mounted so a video requested by voice starts even from another view. */}
+              <div hidden={view !== "videos"}>
+                <VideosView files={files} />
+              </div>
+              {view === "timeline" && <TimelineView onOpen={openInvestigation} onAsk={(question) => { setView("ask"); requestAsk(question); }} />}
+              {view === "lab" && <LabView o2={o2} psi={psi} defaultGravity={envId === "base" || envId === "rover" ? 0.17 : 0} />}
+              {view === "voice" && <VoiceStage />}
+
+              {/* Kept mounted so charts requested by voice land even while another view is open. */}
+              <div hidden={view !== "analytics"}>
+                <AnalyticsView />
+              </div>
+
               {view === "fire" && <FlameBench o2={o2} psi={psi} onChange={(o, p) => { setO2(o); setPsi(p); }} />}
 
               {view === "map" && (
@@ -324,6 +502,8 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
             </div>
           </section>
         </main>
+
+        <Resizer label="Resize the ranking and voice panel" width={cols.right} direction={-1} fallback={350} onChange={(w) => setCols((c) => ({ ...c, right: w }))} onCommit={saveCols} />
 
         {/* right: ranking and the voice console */}
         <aside className="flex min-h-0 min-w-0 flex-col gap-2">
