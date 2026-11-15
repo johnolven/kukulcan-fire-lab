@@ -104,9 +104,18 @@ export function FlameBench({ o2, psi, onChange }: { o2: number; psi: number; onC
           <text x={22} y={212} fontSize={8} letterSpacing={1} fill="var(--ink-dim)" className="mono">ILLUSTRATION · NOT A PHYSICS SIMULATION</text>
           <text x={278} y={38} textAnchor="end" fontSize={8} letterSpacing={1} fill="var(--ink-dim)" className="mono">MICROGRAVITY</text>
         </svg>
-        <div className="mt-1 text-[11px] leading-snug text-dim">
-          Without buoyancy a flame is a sphere fed by diffusion. Air flow stretches it downstream and brings it fresh oxygen.
-        </div>
+        <ol className="mt-2 space-y-1.5 text-[11.5px] leading-snug text-dim">
+          {[
+            ["No buoyancy", "Hot gas does not rise in free fall, so a flame becomes a dim sphere fed only by diffusion."],
+            ["Air flow feeds it", "Ventilation stretches the flame downstream and brings it fresh oxygen."],
+            ["Oxygen decides", "Flammability depends strongly on oxygen concentration; an enriched cabin makes materials burn more readily."],
+          ].map(([t, d], i) => (
+            <li key={t} className="flex gap-2">
+              <span className="mono text-[10px] text-faint">{String(i + 1).padStart(2, "0")}</span>
+              <span><b className="font-medium text-ink">{t}.</b> {d}</span>
+            </li>
+          ))}
+        </ol>
       </div>
 
       <div className="min-w-0">
@@ -172,7 +181,7 @@ export function FlameBench({ o2, psi, onChange }: { o2: number; psi: number; onC
           )}
         </div>
 
-        <div className="scroll mt-3 max-h-[168px]">
+        <div className="scroll fill mt-3 max-h-[168px]">
           <table className="data">
             <thead>
               <tr><th>Closest records</th><th className="num">Steps</th></tr>

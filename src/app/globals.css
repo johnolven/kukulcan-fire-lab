@@ -272,3 +272,9 @@ table.data th.num {
 .draw.no-notes .note {
   display: none;
 }
+
+/* Inside the stage the stage itself scrolls, so full-width tables do not nest a second scrollbar. */
+.stage .fill {
+  max-height: none;
+  overflow: visible;
+}

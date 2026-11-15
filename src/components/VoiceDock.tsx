@@ -9,7 +9,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ENVIRONMENTS } from "@/lib/environments";
 import { COMBUSTION, label, materials } from "@/lib/lab";
+import { signal } from "@/lib/activity";
 import type { UiAction } from "@/lib/voiceTools";
+import { VoiceWave, type VoiceState } from "./VoiceWave";
 
 interface Line {
   who: "you" | "lab" | "sys";
@@ -23,6 +25,7 @@ interface VoiceConfig {
   reachable: boolean;
   systemPrompt: string;
   uiTools: { name: string; description: string; parameters: Record<string, unknown> }[];
+  dataTools: { name: string; description: string; parameters: Record<string, unknown> }[];
 }
 
 const UI_TOOL_NAMES = ["show_environment", "set_atmosphere", "open_panel", "focus_investigation", "filter_tests", "write_brief"];
@@ -36,7 +39,17 @@ const ENV_WORDS: [RegExp, string][] = [
   [/\b(base|moon|lunar|luna|mars|marte|habitat|h[aá]bitat)\b/i, "base"],
 ];
 
+const VIEW_WORDS: [RegExp, string, string][] = [
+  [/\b(fire|flame|fuego|flama)\b/i, "fire", ""],
+  [/\b(map|mapa)\b/i, "map", ""],
+  [/\b(tables?|tests?|records?|tablas?|pruebas?|registros?)\b/i, "tests", "Test records are on the stage. Search them or download the CSV."],
+  [/\b(investigations?|investigaciones|investigaci[oó]n)\b/i, "investigations", "All investigations are on the stage, scored for this design."],
+  [/\b(materials|materiales)\b/i, "materials", "The materials NASA tested are on the stage."],
+  [/\b(connections?|conexi[oó]n|conexiones|nodes?|nodos?|mcp)\b/i, "connections", "The connection map is on the stage. Run a live check to see requests travel."],
+];
+
 async function callVoiceTool(name: string, args: Record<string, unknown>): Promise<string> {
+  signal("table-voicemcp", "voicemcp-core");
   const r = await fetch("/api/voice/mcp", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -52,14 +65,20 @@ async function callVoiceTool(name: string, args: Record<string, unknown>): Promi
 }
 
 export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAction: (a: UiAction) => void }) {
-  const [lines, setLines] = useState<Line[]>([{ who: "sys", text: "Try: “show the rover”, “34% oxygen at 8.2 psi”, “what about Nomex?”, “what is missing?”, “explain BASS-II”." }]);
+  const [lines, setLines] = useState<Line[]>([]);
   const [input, setInput] = useState("");
   const [speak, setSpeak] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [cfg, setCfg] = useState<VoiceConfig | null>(null);
   const [call, setCall] = useState<"idle" | "connecting" | "live">("idle");
   const [level, setLevel] = useState(0);
+  const [activity, setActivity] = useState<"none" | "hearing" | "querying" | "speaking">("none");
+  const hearingTimer = useRef<number | undefined>(undefined);
+  const replyTimer = useRef<number | undefined>(undefined);
   const [lang, setLang] = useState<"en" | "es">("en");
-  const vapiRef = useRef<{ stop: () => void } | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vapiRef = useRef<any>(null);
+  const handled = useRef(new Set<string>());
   const design = useRef({ o2, psi });
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -79,9 +98,18 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
   const say = useCallback(
     (text: string) => {
       add("lab", text);
-      if (speak && typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.clearTimeout(replyTimer.current);
+      const done = () => setActivity((a) => (a === "speaking" ? "none" : a));
+      setActivity("speaking");
+      if (speak && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+        const u = new SpeechSynthesisUtterance(text);
+        u.onend = done;
+        u.onerror = done;
+        window.speechSynthesis.speak(u);
+      } else {
+        // Silent reply: show the wave for roughly the time it takes to read it.
+        replyTimer.current = window.setTimeout(done, Math.min(6000, 900 + text.length * 22));
       }
     },
     [add, speak],
@@ -93,6 +121,8 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
     if (!text) return;
     add("you", text);
     setInput("");
+    signal("you-table");
+    setActivity("querying");
     let { o2: O, psi: P } = design.current;
     try {
       const env = ENV_WORDS.find(([re]) => re.test(text))?.[1];
@@ -100,6 +130,16 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
       const press = text.match(/(\d+(?:\.\d+)?)\s*psi/i);
       const mat = materials().find((m) => text.toLowerCase().includes(m.material.split(" (")[0].toLowerCase().split(" ")[0]));
       const inv = COMBUSTION.find((i) => i.acronym && new RegExp(`(^|[^a-z0-9-])${label(i).replace(/[^a-z0-9]+/gi, "[^a-z0-9]*")}([^a-z0-9-]|$)`, "i").test(text));
+
+      // "show me the fire / the tables / the map ...": change the stage and say what it shows.
+      const wanted = VIEW_WORDS.find(([re]) => re.test(text));
+      const env0 = ENV_WORDS.some(([re]) => re.test(text));
+      if (wanted && !env0 && !/\d/.test(text)) {
+        onAction({ tool: "open_panel", args: { panel: wanted[1] } });
+        if (wanted[1] === "fire" || wanted[1] === "map") return say(await callVoiceTool("check_design", { o2_pct: O, pressure_psi: P }));
+        setActivity("none");
+        return add("lab", wanted[2]);
+      }
 
       if (/\b(gap|gaps|missing|untested|hueco|huecos|falta)\b/i.test(text)) {
         onAction({ tool: "open_panel", args: { panel: "gaps" } });
@@ -115,11 +155,11 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
       }
       if (mat && !pct && !env) {
         onAction({ tool: "filter_tests", args: { material: mat.material.split(" (")[0] } });
-        onAction({ tool: "open_panel", args: { panel: "materials" } });
+        onAction({ tool: "open_panel", args: { panel: "tests" } });
         return say(await callVoiceTool("check_material", { material: mat.material }));
       }
       if (/\b(rank|ranking|top|best|mejor|mejores)\b/i.test(text) && !env && !pct) {
-        onAction({ tool: "open_panel", args: { panel: "ranking" } });
+        onAction({ tool: "open_panel", args: { panel: "investigations" } });
         return say(await callVoiceTool("rank_for_design", { o2_pct: O, pressure_psi: P }));
       }
       if (/\b(how many|numbers|stats|cu[aá]nt)/i.test(text)) return say(await callVoiceTool("lab_numbers", {}));
@@ -136,12 +176,13 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
         onAction({ tool: "set_atmosphere", args: { o2_pct: O, pressure_psi: P } });
       }
       if (env || pct || press) {
-        onAction({ tool: "open_panel", args: { panel: "map" } });
+        onAction({ tool: "open_panel", args: { panel: "fire" } });
         return say(await callVoiceTool("check_design", { o2_pct: O, pressure_psi: P }));
       }
       // No structured intent: describe the current design.
       return say(await callVoiceTool("check_design", { o2_pct: O, pressure_psi: P }));
     } catch {
+      setActivity("none");
       add("sys", "The lab could not answer that. Check the connection and try again.");
     }
   }
@@ -152,12 +193,20 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
     try {
       const Vapi = (await import("@vapi-ai/web")).default;
       const vapi = new Vapi(cfg.publicKey);
+      const dataNames = cfg.dataTools.map((t) => t.name);
+      handled.current.clear();
       vapiRef.current = vapi;
       vapi.on("call-start", () => setCall("live"));
       vapi.on("call-end", () => {
         setCall("idle");
         setLevel(0);
+        setActivity("none");
       });
+      vapi.on("speech-start", () => {
+        setActivity("speaking");
+        signal("you-vapi");
+      });
+      vapi.on("speech-end", () => setActivity((a) => (a === "speaking" ? "none" : a)));
       vapi.on("volume-level", (v: number) => setLevel(v));
       vapi.on("error", () => {
         add("sys", "The voice call ended with an error. Typed commands still work.");
@@ -165,48 +214,78 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vapi.on("message", (m: any) => {
+        if (m?.type === "transcript" && m.role === "user") {
+          // Partial transcripts mean the user is talking right now.
+          signal("you-vapi");
+          setActivity((a) => (a === "speaking" || a === "querying" ? a : "hearing"));
+          window.clearTimeout(hearingTimer.current);
+          hearingTimer.current = window.setTimeout(() => setActivity((a) => (a === "hearing" ? "none" : a)), 900);
+        }
         if (m?.type === "transcript" && m.transcriptType === "final") add(m.role === "user" ? "you" : "lab", m.transcript);
         if (m?.type === "tool-calls") {
           for (const c of m.toolCallList ?? m.toolCalls ?? []) {
             const name: string = c?.function?.name ?? "";
-            const tool = UI_TOOL_NAMES.find((n) => name === n || name.endsWith(n));
-            if (!tool) continue;
+            const callId: string = c?.id ?? `${name}:${JSON.stringify(c?.function?.arguments ?? "")}`;
+            if (handled.current.has(callId)) continue;
+            handled.current.add(callId);
             let args: Record<string, unknown> = {};
             try {
               args = typeof c.function.arguments === "string" ? JSON.parse(c.function.arguments || "{}") : (c.function.arguments ?? {});
             } catch {
               continue;
             }
-            onAction({ tool, args });
+            const ui = UI_TOOL_NAMES.find((n) => name === n || name.endsWith(n));
+            signal("vapi-table");
+            if (ui) {
+              onAction({ tool: ui, args });
+              continue;
+            }
+            const data = dataNames.find((n) => name === n || name.endsWith(n));
+            if (!data) continue;
+            // Fill in the design on the table when the model left it out.
+            if (["check_design", "rank_for_design", "name_the_gaps", "swarm_brief"].includes(data) && args.environment == null) {
+              args.o2_pct ??= design.current.o2;
+              args.pressure_psi ??= design.current.psi;
+            }
+            setActivity("querying");
+            callVoiceTool(data, args)
+              .then((result) => {
+                setActivity((a) => (a === "querying" ? "none" : a));
+                signal("vapi-table");
+                add("sys", `${data}: ${result}`);
+                vapi.send({ type: "add-message", message: { role: "system", content: `LAB RESULT for ${data}: ${JSON.stringify({ say: result })}` }, triggerResponseEnabled: true });
+              })
+              .catch(() => {
+                vapi.send({ type: "add-message", message: { role: "system", content: `LAB RESULT for ${data}: the lab could not be reached. Tell the user to try again.` }, triggerResponseEnabled: true });
+              });
           }
         }
       });
 
-      const tools = [
-        ...cfg.uiTools.map((t) => ({ type: "function", async: true, function: t })),
-        ...(cfg.reachable ? [{ type: "mcp", server: { url: cfg.mcpUrl, timeoutSeconds: 30 }, metadata: { protocol: "shttp" } }] : []),
-      ];
-      const overrides = { variableValues: { o2_pct: design.current.o2, pressure_psi: design.current.psi } };
+      const model = {
+        provider: "openai",
+        model: "gpt-4.1",
+        messages: [{ role: "system", content: `${cfg.systemPrompt}\n\nThe table currently shows ${design.current.o2}% oxygen at ${design.current.psi} psi.` }],
+        tools: [...cfg.uiTools, ...cfg.dataTools].map((t) => ({ type: "function", async: true, function: t })),
+      };
+      const firstMessage = lang === "es" ? "Laboratorio listo. ¿Qué entorno quieres revisar?" : "Lab is ready. Which environment do you want to look at?";
+      const clientMessages = ["transcript", "tool-calls"];
       if (cfg.assistantId) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await vapi.start(cfg.assistantId, overrides as any);
+        // The saved assistant (scripts/create_vapi_assistant.mjs) already carries the lab's
+        // instructions and tools. Only the current table state is passed along.
+        await vapi.start(cfg.assistantId);
+        vapi.send({ type: "add-message", message: { role: "system", content: `The table currently shows ${design.current.o2}% oxygen at ${design.current.psi} psi.` }, triggerResponseEnabled: false });
       } else {
         await vapi.start({
           name: "Kukulcan Fire Lab",
-          firstMessage: lang === "es" ? "Laboratorio listo. ¿Qué entorno quieres revisar?" : "Lab is ready. Which environment do you want to look at?",
-          model: {
-            provider: "openai",
-            model: "gpt-4.1",
-            messages: [{ role: "system", content: `${cfg.systemPrompt}\n\nThe table currently shows ${design.current.o2}% oxygen at ${design.current.psi} psi.` }],
-            tools,
-          },
+          firstMessage,
+          model,
           voice: { provider: "vapi", voiceId: "Elliot" },
           transcriber: { provider: "deepgram", model: "nova-2", language: lang },
-          clientMessages: ["transcript", "tool-calls"],
+          clientMessages,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any);
       }
-      if (!cfg.reachable) add("sys", "Running on localhost: Vapi cannot reach the data tools here, so the voice can move the table but not quote records. Deploy or tunnel to enable them.");
     } catch {
       add("sys", "Could not start the voice call. Check the Vapi key and microphone permission.");
       setCall("idle");
@@ -216,36 +295,64 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
   function stopCall() {
     vapiRef.current?.stop();
     setCall("idle");
+    setActivity("none");
   }
 
+  const lastLab = [...lines].reverse().find((l) => l.who === "lab")?.text;
+  const voiceState: VoiceState = activity !== "none" ? activity : call === "connecting" ? "connecting" : call === "live" ? "listening" : "idle";
+
   return (
-    <div className="panel flex h-full flex-col p-3">
-      <div className="flex items-center gap-2">
+    <div className="panel flex flex-col p-3 shadow-[0_10px_40px_rgba(0,0,0,0.5)]" style={{ background: "rgba(6,12,20,0.96)" }}>
+      <div className="-mx-3 -mt-3 flex cursor-grab select-none items-center gap-2 border-b border-line px-3 py-2 active:cursor-grabbing" data-drag-handle title="Drag to move · double-click to send back to the corner">
+        <span className="mono text-[11px] leading-none text-faint" aria-hidden>⋮⋮</span>
         <span className="label">Voice console</span>
         <span className="mono ml-auto border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim">SI-generated voice</span>
+        <button className="mono border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim hover:border-accent hover:text-accent" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
+          {expanded ? "Hide log" : "Show log"}
+        </button>
       </div>
+
+      <VoiceWave state={voiceState} level={level} />
 
       <div className="mt-2 flex items-center gap-2">
         <button
-          className={`btn flex items-center gap-2 ${call === "live" ? "on" : ""}`}
+          className={`btn flex flex-1 items-center justify-center gap-2 !py-2 ${call === "live" ? "on" : ""}`}
           onClick={call === "idle" ? startCall : stopCall}
           disabled={!cfg?.publicKey || call === "connecting"}
           title={cfg?.publicKey ? "Talk to the lab" : "Set NEXT_PUBLIC_VAPI_PUBLIC_KEY to enable live voice"}
         >
-          <span className="inline-block h-2 w-2 rounded-full" style={{ background: call === "live" ? "var(--danger)" : "var(--ink-faint)", boxShadow: call === "live" ? `0 0 ${4 + level * 18}px var(--danger)` : undefined }} />
-          {call === "idle" ? "Talk" : call === "connecting" ? "Connecting…" : "End call"}
+          <span className="inline-block h-2 w-2 rounded-full" style={{ background: call === "live" ? "var(--danger)" : "var(--accent)", boxShadow: call === "live" ? "0 0 8px var(--danger)" : undefined }} />
+          {call === "idle" ? "Talk to the lab" : call === "connecting" ? "Connecting…" : "End call"}
         </button>
-        <button className="btn !px-2" aria-pressed={lang === "es"} onClick={() => setLang(lang === "en" ? "es" : "en")} disabled={call !== "idle"} title="Speech recognition language">{lang.toUpperCase()}</button>
-        <button className="btn !px-2" aria-pressed={speak} onClick={() => setSpeak(!speak)} title="Read typed-command answers aloud with the browser voice">Read aloud</button>
+        {!cfg?.assistantId && (
+          <button className="btn !px-2 !py-2" aria-pressed={lang === "es"} onClick={() => setLang(lang === "en" ? "es" : "en")} disabled={call !== "idle"} title="Speech recognition language">{lang.toUpperCase()}</button>
+        )}
+        <button className="btn !px-2 !py-2" aria-pressed={speak} onClick={() => setSpeak(!speak)} title="Read typed-command answers aloud with the browser voice">Read aloud</button>
       </div>
       {cfg && !cfg.publicKey && <div className="mt-1.5 text-[11px] leading-snug text-dim">Live voice is off: no Vapi key configured. Typed commands use the same tools.</div>}
 
-      <div ref={logRef} className="scroll mt-2 min-h-[120px] flex-1 space-y-1.5 text-[12.5px] leading-snug" aria-live="polite">
-        {lines.map((l, i) => (
-          <div key={i} className={l.who === "you" ? "text-accent" : l.who === "sys" ? "text-faint" : ""}>
-            <span className="mono mr-1.5 text-[10px] uppercase text-faint">{l.who === "you" ? "you" : l.who === "lab" ? "lab" : "··"}</span>
-            {l.text}
-          </div>
+      {expanded ? (
+        <div ref={logRef} className="scroll mt-2 max-h-[26vh] min-h-[90px] space-y-1.5 text-[12.5px] leading-snug" aria-live="polite">
+          {lines.length === 0 && <div className="text-[11.5px] text-faint">Nothing said yet.</div>}
+          {lines.map((l, i) => (
+            <div key={i} className={l.who === "you" ? "border-l border-accent pl-2 text-accent" : l.who === "sys" ? "pl-2 text-[11.5px] text-faint" : "border-l border-white/40 pl-2"}>
+              <span className="mono mr-1.5 text-[9.5px] uppercase tracking-widest text-faint">{l.who === "you" ? "you" : l.who === "lab" ? "lab" : "data"}</span>
+              {l.text}
+            </div>
+          ))}
+        </div>
+      ) : (
+        // Fixed height so the buttons below do not jump when a reply arrives.
+        <div className="mt-2 h-[50px] overflow-hidden border-l border-white/40 pl-2 text-[12.5px] leading-snug" aria-live="polite" title={lastLab}>
+          {lastLab ? <span className="line-clamp-3">{lastLab}</span> : <span className="text-faint">Ask for the fire, the tables, a material or an environment. The stage in the centre changes to show it.</span>}
+        </div>
+      )}
+
+      <div className="mt-2 flex flex-wrap gap-1">
+        {["Show the rover", "Show the fire", "Show the tables", "What about Nomex?", "What is missing?", "Explain BASS-II", "Show connections"].map((c) => (
+          <button key={c} className="mono border border-line px-1.5 py-0.5 text-[10px] text-dim transition-colors hover:border-accent hover:text-accent" onClick={() => command(c)}>
+            {c}
+          </button>
         ))}
       </div>
 
@@ -256,7 +363,7 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
           command(input);
         }}
       >
-        <input className="field min-w-0 flex-1" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a command" aria-label="Command for the lab" />
+        <input className="field min-w-0 flex-1" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Or type a command" aria-label="Command for the lab" />
         <button className="btn" type="submit">Send</button>
       </form>
     </div>

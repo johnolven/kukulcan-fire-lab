@@ -143,8 +143,9 @@ export const UI_TOOLS = [
   },
   {
     name: "open_panel",
-    description: "Bring one panel of the lab into view.",
-    parameters: { type: "object", properties: { panel: { type: "string", enum: ["map", "ranking", "investigations", "tests", "materials", "gaps", "brief", "connect"] } }, required: ["panel"] },
+    description:
+      "Change what the centre stage of the lab shows. fire = the flame and what nearby tests did; map = evidence map of every test by oxygen and pressure; investigations = table of investigations; tests = table of test records; materials = materials table; gaps = what is untested; brief = the analysts; connections = diagram of how the voice, the MCP servers and NASA connect.",
+    parameters: { type: "object", properties: { panel: { type: "string", enum: ["fire", "map", "investigations", "tests", "materials", "gaps", "brief", "connections"] } }, required: ["panel"] },
   },
   {
     name: "focus_investigation",
@@ -168,8 +169,10 @@ export function voiceSystemPrompt(): string {
 
 How to work:
 - The lab table is on the user's screen. When they name an environment, call show_environment and then check_design, and tell them what the evidence says. When they give numbers, call set_atmosphere and then check_design with the same numbers.
-- For a material, call check_material. For an investigation, call focus_investigation and explain_investigation. For "what is missing", call name_the_gaps and open_panel with gaps.
-- Every data tool returns a "say" string. Speak it in your own words and keep it under four sentences. Read numbers naturally.
+- For a material, call check_material and open_panel with materials. For an investigation, call focus_investigation and explain_investigation. For "what is missing", call name_the_gaps and open_panel with gaps.
+- The centre stage shows one view at a time and the page never scrolls. Whenever the user asks to see something, call open_panel so it appears: fire or flame -> fire; the map -> map; tables, tests or records -> tests; investigations -> investigations; materials -> materials; how it connects, nodes or MCP -> connections. After showing an environment or changing the atmosphere, open fire unless they asked for another view.
+- Data tools (check_design, check_material, explain_investigation, rank_for_design, name_the_gaps, lab_numbers, swarm_brief) answer a moment later in a system message that starts with "LAB RESULT". After calling one, say at most "One moment" and stop. When the LAB RESULT arrives, speak its "say" text in your own words, under four sentences, reading numbers naturally.
+- If a LAB RESULT has not arrived, do not guess and do not say the lab has no information. Wait for it.
 - Only state figures that came from a tool. If a tool says something was never tested, say exactly that.
 - Never say a material or design is safe. Say what was tested and what was not. Above the tested oxygen range, call it extrapolation.
 - NASA's repository has no partial-gravity data; lunar and Martian behavior can only be bounded between microgravity and normal gravity.

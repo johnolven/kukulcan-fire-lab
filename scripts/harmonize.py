@@ -252,7 +252,11 @@ def harmonize(files_dir, acr_of):
                     one = round((lo + hi) / 2, 2)
                 bt = col(r, "burn time")
                 direction = col(r, "direction")
-                add(acc, src, r, test_id=r["Sample Number"], material=material_family(mat), fuel=mat,
+                # Two-material samples must not be filed under one material: in Saffire-II
+                # sample 2-7 the table gives separate burn lengths for PMMA and Nomex.
+                family = " + ".join(p.strip() for p in mat.split("&")) + " (two-material sample)" if "&" in mat else material_family(mat)
+                extra = "; ".join(f"{label}: {r[k]}" for k, label in ((next((c for c in r if "g Burn Length" in c and not c.startswith("1")), ""), "microgravity burn length"), ("1-g Burn Length", "1-g burn length"), ("1-g Spread Rate", "1-g spread rate")) if k and r.get(k))
+                add(acc, src, r, test_id=r["Sample Number"], material=family, fuel=mat, notes=extra or None,
                     geometry=f"sheet {col(r, 'thickness')} thick x {col(r, 'length')} x {col(r, 'width')}; {direction.lower()} flow",
                     o2_pct=one, o2_min=lo, o2_max=hi, flow_cm_s=num(col(r, "air flow")), burn_time_s=num(bt) if re.match(r"^\d", bt) else None,
                     outcome=("Did not sustain burning" if bt.lower().startswith("insig") else None))

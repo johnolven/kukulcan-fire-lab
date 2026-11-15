@@ -3,6 +3,7 @@
 // Code generated with SI assistance (Claude Code).
 
 import { useMemo, useState, useSyncExternalStore } from "react";
+import { signal } from "@/lib/activity";
 import type { Brief } from "@/lib/agents";
 import { COMBUSTION, coverage, label, materials, O2_BINS, P_BINS, phaseGroup, type Gap, type RankedInvestigation } from "@/lib/lab";
 import type { FileEntry, Investigation, TestRecord } from "@/lib/types";
@@ -32,7 +33,7 @@ const PART_LABEL: [keyof RankedInvestigation["parts"], string, number, string][]
 
 export function Ranking({ ranked, onOpen, selected, compact }: { ranked: RankedInvestigation[]; onOpen: (acc: string) => void; selected: string | null; compact?: boolean }) {
   return (
-    <div>
+    <div className={compact ? "flex min-h-0 flex-1 flex-col" : ""}>
       <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1">
         {PART_LABEL.map(([k, name, max, short], n) => (
           <span key={k} className="label flex items-center gap-1" title={`${name}, out of ${max}`}>
@@ -41,7 +42,7 @@ export function Ranking({ ranked, onOpen, selected, compact }: { ranked: RankedI
           </span>
         ))}
       </div>
-      <div className={`scroll pr-1 ${compact ? "max-h-[292px]" : "max-h-[520px]"}`}>
+      <div className={`scroll pr-1 ${compact ? "min-h-0 flex-1" : "max-h-[520px]"}`}>
       {ranked.map((r, n) => (
         <button
           key={r.investigation.accession}
@@ -79,6 +80,7 @@ export function InvestigationDetail({ inv, files, onClose }: { inv: Investigatio
   async function open(f: FileEntry) {
     setBusy(f.n);
     setErr(null);
+    signal("table-psi");
     // open the tab inside the click so the browser does not block it
     const tab = window.open("about:blank", "_blank");
     try {
@@ -194,7 +196,7 @@ export function InvestigationsTable({ onOpen, scores }: { onOpen: (acc: string) 
     </th>
   );
   return (
-    <div className="scroll max-h-[560px]">
+    <div className="scroll fill max-h-[560px]">
       <table className="data">
         <thead>
           <tr>
@@ -263,7 +265,7 @@ export function TestsTable({ tests, total }: { tests: TestRecord[]; total: numbe
         <span className="label">{rows.length.toLocaleString()} of {total.toLocaleString()} records{rows.length > 300 ? " · showing first 300" : ""}</span>
         <button className="btn ml-auto" onClick={() => downloadCsv(rows)}>Download CSV ({rows.length})</button>
       </div>
-      <div className="scroll max-h-[520px]">
+      <div className="scroll fill max-h-[520px]">
         <table className="data">
           <thead>
             <tr>
@@ -301,7 +303,7 @@ export function MaterialsTable({ onFilter }: { onFilter: (m: string) => void }) 
   const rows = useMemo(() => materials(), []);
   return (
     <div>
-      <div className="scroll max-h-[420px]">
+      <div className="scroll fill max-h-[420px]">
         <table className="data">
           <thead>
             <tr><th>Material</th><th>Evidence type</th><th>Investigations</th><th className="num">Records</th><th className="num">Oxygen tested %</th><th className="num">Flow cm/s</th><th>At 30% O₂ or more</th></tr>

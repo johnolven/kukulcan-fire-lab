@@ -20,6 +20,7 @@ import {
   materials,
   nearestTests,
   phaseGroup,
+  queryTests,
   rankInvestigations,
 } from "./lab";
 import type { Target } from "./types";
@@ -73,7 +74,8 @@ function preventionPack(target: Target, material?: string) {
   const mat = material ? materialEvidence(material) : undefined;
   return {
     ranked_investigations: ranked.map((r) => ({ id: r.investigation.accession, name: label(r.investigation), score: r.score, focus: r.investigation.focus, why: r.rationale })),
-    closest_solid_material_records: solids.map((s) => ({ cite: `${s.item.acronym} ${s.item.test_id}`, summary: describeTest(s.item), steps_from_design: +s.distance.toFixed(2) })),
+    closest_solid_material_records: solids.map((s) => ({ cite: `${s.item.acronym} ${s.item.test_id}`, summary: describeTest(s.item), notes: s.item.notes, steps_from_design: +s.distance.toFixed(2) })),
+    records_naming_asked_material: material ? queryTests({ material }).slice(0, 12).map((t) => ({ cite: `${t.acronym} ${t.test_id}`, summary: describeTest(t), notes: t.notes })) : null,
     closest_records_any_fuel: any.map((s) => ({ cite: `${s.item.acronym} ${s.item.test_id}`, summary: describeTest(s.item), steps_from_design: +s.distance.toFixed(2) })),
     asked_material: material ? (mat ?? `No record for "${material}" in the repository tables.`) : null,
     materials_with_flammability_records: materials().filter((m) => m.kinds.includes("flammability")).map((m) => ({ material: m.material, records: m.records, o2_range: m.o2_range, investigations: m.investigations })),
@@ -185,7 +187,8 @@ Rules that keep the analysis honest:
 - Never state that a material or design is safe. Say what was tested, what happened, and what was not tested.
 - When the design atmosphere lies outside what was tested, say it is extrapolation and name the direction of the risk (higher oxygen makes materials more flammable).
 - PSI has no partial-gravity data. Microgravity and normal gravity only bound lunar or Martian behavior.
-- Plain prose, no headings, no bullet lists, at most 130 words.`;
+- One paragraph of plain prose, at most 130 words. No markdown, no headings, no bullet lists, no bold.
+- A record that lists two materials is one composite sample. Read its notes before attributing the burn to either material.`;
 
 async function ask(client: Anthropic, system: string, user: string, effort: "low" | "medium"): Promise<string | null> {
   const response = await client.beta.messages.create({
@@ -202,6 +205,8 @@ async function ask(client: Anthropic, system: string, user: string, effort: "low
     .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
     .map((b) => b.text)
     .join("")
+    .replace(/\*\*/g, "")
+    .replace(/\s*\n+\s*/g, " ")
     .trim();
   return text || null;
 }
