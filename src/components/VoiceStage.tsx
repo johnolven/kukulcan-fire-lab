@@ -18,7 +18,8 @@ const LOOK: Record<VoiceState, { rgb: [number, number, number]; base: number; sp
   speaking: { rgb: [127, 231, 255], base: 0.34, speed: 1.7, label: "Lab speaking", hint: "" },
 };
 
-export function VoiceStage() {
+/** The radial voice visual on its own: it fills whatever box it is given. */
+export function VoiceOrb({ className }: { className?: string }) {
   const voice = useSyncExternalStore(voiceStore.subscribe, voiceStore.get, serverVoiceSnapshot);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -163,30 +164,39 @@ export function VoiceStage() {
     };
   }, []);
 
-  const look = LOOK[voice.state];
-  const css = `rgb(${look.rgb.join(",")})`;
+  return (
+    <div className={`relative ${className ?? ""}`}>
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />
+      {(["tl", "tr", "bl", "br"] as const).map((c) => (
+        <span key={c} className="mono pointer-events-none absolute text-[9px] uppercase tracking-[0.18em] text-faint" style={{ [c[0] === "t" ? "top" : "bottom"]: 6, [c[1] === "l" ? "left" : "right"]: 6 }}>
+          {c === "tl" ? "Kukulcan · voice" : c === "tr" ? (voice.live ? "channel open" : "channel closed") : c === "bl" ? `level ${(voice.level * 100).toFixed(0).padStart(2, "0")}` : "NASA PSI"}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+export function voiceLook(state: VoiceState) {
+  const look = LOOK[state];
+  return { label: look.label, hint: look.hint, css: `rgb(${look.rgb.join(",")})` };
+}
+
+export function VoiceStage() {
+  const voice = useSyncExternalStore(voiceStore.subscribe, voiceStore.get, serverVoiceSnapshot);
+  const { label, hint, css } = voiceLook(voice.state);
   return (
     <div className="relative flex h-full min-h-[440px] flex-col">
       <div className="flex items-center gap-3">
         <span className="mono flex items-center gap-2 text-[11px] uppercase tracking-[0.2em]" style={{ color: css }} role="status">
           <span className="inline-block h-2 w-2 rounded-full" style={{ background: css, boxShadow: `0 0 8px ${css}` }} />
-          {look.label}
+          {label}
         </span>
         <span className="mono ml-auto border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim">SI-generated voice</span>
       </div>
-
-      <div className="relative min-h-0 flex-1">
-        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />
-        {(["tl", "tr", "bl", "br"] as const).map((c) => (
-          <span key={c} className="mono pointer-events-none absolute text-[9px] uppercase tracking-[0.18em] text-faint" style={{ [c[0] === "t" ? "top" : "bottom"]: 6, [c[1] === "l" ? "left" : "right"]: 6 }}>
-            {c === "tl" ? "Kukulcan · voice" : c === "tr" ? (voice.live ? "channel open" : "channel closed") : c === "bl" ? `level ${(voice.level * 100).toFixed(0).padStart(2, "0")}` : "13 tools · NASA PSI"}
-          </span>
-        ))}
-      </div>
-
+      <VoiceOrb className="min-h-0 flex-1" />
       <div className="mx-auto w-full max-w-[760px] text-center">
         {voice.you && <p className="truncate text-[12.5px] text-accent" title={voice.you}><span className="mono mr-2 text-[9.5px] uppercase tracking-widest text-faint">you</span>{voice.you}</p>}
-        <p className="mt-1 min-h-[44px] text-[16px] leading-snug">{voice.lab || <span className="text-dim">{look.hint || "The lab answers here."}</span>}</p>
+        <p className="mt-1 min-h-[44px] text-[16px] leading-snug">{voice.lab || <span className="text-dim">{hint || "The lab answers here."}</span>}</p>
         <div className="mt-2 flex items-center justify-center gap-2 pb-1">
           <button className={`btn flex items-center gap-2 !px-5 !py-2 ${voice.live ? "on" : ""}`} onClick={requestVoiceToggle} disabled={!voice.available || voice.state === "connecting"} title={voice.available ? "Talk to the lab" : "Live voice needs a Vapi key; typed commands work without it"}>
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: voice.live ? "var(--danger)" : "var(--accent)" }} />

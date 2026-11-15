@@ -42,7 +42,7 @@ export function Ranking({ ranked, onOpen, selected, compact }: { ranked: RankedI
           </span>
         ))}
       </div>
-      <div className={`scroll pr-1 ${compact ? "min-h-0 flex-1" : "max-h-[520px]"}`}>
+      <div className={`scroll fill pr-1 ${compact ? "min-h-0 flex-1" : "max-h-[520px]"}`}>
       {ranked.map((r, n) => (
         <button
           key={r.investigation.accession}

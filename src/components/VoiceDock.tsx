@@ -10,8 +10,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ENVIRONMENTS } from "@/lib/environments";
 import { COMBUSTION, label, materials } from "@/lib/lab";
 import { signal } from "@/lib/activity";
+import { fullSnapshot } from "@/lib/controls";
 import type { UiAction } from "@/lib/voiceTools";
 import { onVoiceToggle, voiceStore } from "@/lib/voiceStore";
+import { VoiceOrb, voiceLook } from "./VoiceStage";
 import { VoiceWave, type VoiceState } from "./VoiceWave";
 
 interface Line {
@@ -29,7 +31,7 @@ interface VoiceConfig {
   dataTools: { name: string; description: string; parameters: Record<string, unknown> }[];
 }
 
-const UI_TOOL_NAMES = ["show_environment", "set_atmosphere", "open_panel", "focus_investigation", "filter_tests", "write_brief", "build_chart", "play_video", "watch_nasa_video"];
+const UI_TOOL_NAMES = ["show_environment", "set_atmosphere", "open_panel", "focus_investigation", "filter_tests", "write_brief", "build_chart", "play_video", "watch_nasa_video", "set_controls", "press_control"];
 
 const ENV_WORDS: [RegExp, string][] = [
   [/\b(suit|spacesuit|traje)\b/i, "suit"],
@@ -72,7 +74,7 @@ async function callVoiceTool(name: string, args: Record<string, unknown>): Promi
   }
 }
 
-export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAction: (a: UiAction) => void }) {
+export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: number; psi: number; onAction: (a: UiAction) => void; floating: boolean; onToggleMode: () => void }) {
   const [lines, setLines] = useState<Line[]>([]);
   const [input, setInput] = useState("");
   const [speak, setSpeak] = useState(false);
@@ -123,14 +125,31 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
     [add, speak],
   );
 
-  // Typed commands: a small local router picks the lab action and the voice tool.
-  async function command(raw: string) {
+  // Typed messages. The language model reads the message and operates the lab with the same
+  // tools the voice has. Suggestion chips and a missing model key use the local router below.
+  async function command(raw: string, local = false) {
     const text = raw.trim();
     if (!text) return;
     add("you", text);
     setInput("");
     signal("you-table");
     setActivity("querying");
+    if (!local) {
+      try {
+        const r = await fetch("/api/command", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, state: fullSnapshot() }) });
+        const j = (await r.json()) as { say?: string; actions?: UiAction[]; used?: string[]; fallback?: boolean };
+        if (!j.fallback && (j.say || j.actions?.length)) {
+          for (const a of j.actions ?? []) {
+            onAction(a);
+            await new Promise((done) => window.setTimeout(done, 220)); // let each step show
+          }
+          if (j.used?.length) add("sys", j.used.join(" · "));
+          return say(j.say || "Done.");
+        }
+      } catch {
+        /* fall through to the local router */
+      }
+    }
     let { o2: O, psi: P } = design.current;
     try {
       const env = ENV_WORDS.find(([re]) => re.test(text))?.[1];
@@ -193,7 +212,7 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
         return say(await callVoiceTool("check_material", { material: mat.material }));
       }
       if (/\b(rank|ranking|top|best|mejor|mejores)\b/i.test(text) && !env && !pct) {
-        onAction({ tool: "open_panel", args: { panel: "investigations" } });
+        onAction({ tool: "open_panel", args: { panel: "ranking" } });
         return say(await callVoiceTool("rank_for_design", { o2_pct: O, pressure_psi: P }));
       }
       if (/\b(how many|numbers|stats|cu[aá]nt)/i.test(text)) return say(await callVoiceTool("lab_numbers", {}));
@@ -274,6 +293,11 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
               onAction({ tool: ui, args });
               continue;
             }
+            if (name === "read_controls" || name.endsWith("read_controls")) {
+              // answered here: the page is the only one who knows what is on screen
+              vapi.send({ type: "add-message", message: { role: "system", content: `LAB RESULT for read_controls: ${JSON.stringify(fullSnapshot())}` }, triggerResponseEnabled: true });
+              continue;
+            }
             const data = dataNames.find((n) => name === n || name.endsWith(n));
             if (!data) continue;
             // Fill in the design on the table when the model left it out.
@@ -346,71 +370,114 @@ export function VoiceDock({ o2, psi, onAction }: { o2: number; psi: number; onAc
   });
   useEffect(() => onVoiceToggle(() => toggleRef.current()), []);
 
+  const CHIPS = ["Show the rover", "Show the fire", "Play a BASS-II video", "Show the timeline", "What did Apollo 1 teach us?", "Chart extinction by diluent gas", "What about Nomex?", "What is missing?"];
+  const talkButton = (extra = "") => (
+    <button
+      className={`btn flex flex-1 items-center justify-center gap-2 !py-2 ${call === "live" ? "on" : ""} ${extra}`}
+      onClick={call === "idle" ? startCall : stopCall}
+      disabled={!cfg?.publicKey || call === "connecting"}
+      title={cfg?.publicKey ? "Talk to the lab" : "Set NEXT_PUBLIC_VAPI_PUBLIC_KEY to enable live voice"}
+    >
+      <span className="inline-block h-2 w-2 rounded-full" style={{ background: call === "live" ? "var(--danger)" : "var(--accent)", boxShadow: call === "live" ? "0 0 8px var(--danger)" : undefined }} />
+      {call === "idle" ? "Talk to the lab" : call === "connecting" ? "Connecting…" : "End call"}
+    </button>
+  );
+  const conversation = (cls: string) => (
+    <div ref={logRef} className={`scroll space-y-1.5 text-[12.5px] leading-snug ${cls}`} aria-live="polite">
+      {lines.length === 0 && <div className="text-[11.5px] leading-snug text-faint">Nothing said yet. Talk, or type below: ask for the fire, the tables, a material, an environment, a chart.</div>}
+      {lines.map((l, i) => (
+        <div key={i} className={l.who === "you" ? "border-l border-accent pl-2 text-accent" : l.who === "sys" ? "pl-2 text-[11.5px] text-faint" : "border-l border-white/40 pl-2"}>
+          <span className="mono mr-1.5 text-[9.5px] uppercase tracking-widest text-faint">{l.who === "you" ? "you" : l.who === "lab" ? "lab" : "data"}</span>
+          {l.text}
+        </div>
+      ))}
+    </div>
+  );
+  const chatBox = (placeholder: string) => (
+    <form
+      className="mt-2 flex gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        command(input);
+      }}
+    >
+      <input className="field min-w-0 flex-1" value={input} onChange={(e) => setInput(e.target.value)} placeholder={placeholder} aria-label="Message for the lab" />
+      <button className="btn" type="submit">Send</button>
+    </form>
+  );
+  const modeButton = (
+    <button className="mono border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim hover:border-accent hover:text-accent" onClick={onToggleMode} title={floating ? "Dock the voice on the right" : "Shrink the voice to a floating console"}>
+      {floating ? "Maximize" : "Minimize"}
+    </button>
+  );
+
+  // Docked on the right: mostly the voice visual, with the conversation and a chat box under it.
+  if (!floating) {
+    const look = voiceLook(voiceState);
+    return (
+      <div className="panel flex h-full min-h-[420px] flex-col p-3">
+        <div className="flex items-center gap-2">
+          <span className="mono flex items-center gap-2 text-[10.5px] uppercase tracking-[0.2em]" style={{ color: look.css }} role="status">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: look.css, boxShadow: `0 0 8px ${look.css}` }} />
+            {look.label}
+          </span>
+          <span className="mono ml-auto border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim">SI-generated voice</span>
+          {modeButton}
+        </div>
+
+        <VoiceOrb className="mt-1 min-h-[180px] flex-[3]" />
+
+        <div className="flex items-center gap-2">
+          {talkButton()}
+          {!cfg?.assistantId && (
+            <button className="btn !px-2 !py-2" aria-pressed={lang === "es"} onClick={() => setLang(lang === "en" ? "es" : "en")} disabled={call !== "idle"} title="Speech recognition language">{lang.toUpperCase()}</button>
+          )}
+          <button className="btn !px-2 !py-2" aria-pressed={speak} onClick={() => setSpeak(!speak)} title="Read typed answers aloud with the browser voice">Read aloud</button>
+        </div>
+        {cfg && !cfg.publicKey && <div className="mt-1.5 text-[11px] leading-snug text-dim">Live voice is off: no Vapi key configured. Typed messages use the same tools.</div>}
+
+        <div className="label mt-3">Conversation</div>
+        {conversation("mt-1 min-h-[70px] flex-[2] basis-0")}
+
+        <div className="mt-2 flex flex-wrap gap-1">
+          {CHIPS.slice(0, 6).map((c) => (
+            <button key={c} className="mono border border-line px-1.5 py-0.5 text-[10px] text-dim transition-colors hover:border-accent hover:text-accent" onClick={() => command(c, true)}>{c}</button>
+          ))}
+        </div>
+        {chatBox("Type to the lab")}
+      </div>
+    );
+  }
+
+  // Floating: the compact console, draggable by its header.
   return (
     <div className="panel flex flex-col p-3 shadow-[0_10px_40px_rgba(0,0,0,0.5)]" style={{ background: "rgba(6,12,20,0.96)" }}>
-      <div className="-mx-3 -mt-3 flex cursor-grab select-none items-center gap-2 border-b border-line px-3 py-2 active:cursor-grabbing" data-drag-handle title="Drag to move · double-click to send back to the corner">
+      <div className="-mx-3 -mt-3 flex cursor-grab select-none items-center gap-2 border-b border-line px-3 py-2 active:cursor-grabbing" data-drag-handle title="Drag to move">
         <span className="mono text-[11px] leading-none text-faint" aria-hidden>⋮⋮</span>
         <span className="label">Voice console</span>
-        <span className="mono ml-auto border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim">SI-generated voice</span>
+        <span className="mono ml-auto border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim">SI voice</span>
         <button className="mono border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim hover:border-accent hover:text-accent" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
           {expanded ? "Hide log" : "Show log"}
         </button>
+        {modeButton}
       </div>
 
       <VoiceWave state={voiceState} level={level} />
 
       <div className="mt-2 flex items-center gap-2">
-        <button
-          className={`btn flex flex-1 items-center justify-center gap-2 !py-2 ${call === "live" ? "on" : ""}`}
-          onClick={call === "idle" ? startCall : stopCall}
-          disabled={!cfg?.publicKey || call === "connecting"}
-          title={cfg?.publicKey ? "Talk to the lab" : "Set NEXT_PUBLIC_VAPI_PUBLIC_KEY to enable live voice"}
-        >
-          <span className="inline-block h-2 w-2 rounded-full" style={{ background: call === "live" ? "var(--danger)" : "var(--accent)", boxShadow: call === "live" ? "0 0 8px var(--danger)" : undefined }} />
-          {call === "idle" ? "Talk to the lab" : call === "connecting" ? "Connecting…" : "End call"}
-        </button>
-        {!cfg?.assistantId && (
-          <button className="btn !px-2 !py-2" aria-pressed={lang === "es"} onClick={() => setLang(lang === "en" ? "es" : "en")} disabled={call !== "idle"} title="Speech recognition language">{lang.toUpperCase()}</button>
-        )}
-        <button className="btn !px-2 !py-2" aria-pressed={speak} onClick={() => setSpeak(!speak)} title="Read typed-command answers aloud with the browser voice">Read aloud</button>
+        {talkButton()}
+        <button className="btn !px-2 !py-2" aria-pressed={speak} onClick={() => setSpeak(!speak)} title="Read typed answers aloud with the browser voice">Read aloud</button>
       </div>
-      {cfg && !cfg.publicKey && <div className="mt-1.5 text-[11px] leading-snug text-dim">Live voice is off: no Vapi key configured. Typed commands use the same tools.</div>}
 
       {expanded ? (
-        <div ref={logRef} className="scroll mt-2 max-h-[26vh] min-h-[90px] space-y-1.5 text-[12.5px] leading-snug" aria-live="polite">
-          {lines.length === 0 && <div className="text-[11.5px] text-faint">Nothing said yet.</div>}
-          {lines.map((l, i) => (
-            <div key={i} className={l.who === "you" ? "border-l border-accent pl-2 text-accent" : l.who === "sys" ? "pl-2 text-[11.5px] text-faint" : "border-l border-white/40 pl-2"}>
-              <span className="mono mr-1.5 text-[9.5px] uppercase tracking-widest text-faint">{l.who === "you" ? "you" : l.who === "lab" ? "lab" : "data"}</span>
-              {l.text}
-            </div>
-          ))}
-        </div>
+        conversation("mt-2 max-h-[26vh] min-h-[90px]")
       ) : (
-        // Fixed height so the buttons below do not jump when a reply arrives.
+        // Fixed height so the controls below do not jump when a reply arrives.
         <div className="mt-2 h-[50px] overflow-hidden border-l border-white/40 pl-2 text-[12.5px] leading-snug" aria-live="polite" title={lastLab}>
-          {lastLab ? <span className="line-clamp-3">{lastLab}</span> : <span className="text-faint">Ask for the fire, the tables, a material or an environment. The stage in the centre changes to show it.</span>}
+          {lastLab ? <span className="line-clamp-3">{lastLab}</span> : <span className="text-faint">Ask for the fire, the tables, a material or an environment.</span>}
         </div>
       )}
-
-      <div className="mt-2 flex flex-wrap gap-1">
-        {["Show the rover", "Show the fire", "Play a BASS-II video", "Show the timeline", "What did Apollo 1 teach us?", "Chart extinction by diluent gas", "What about Nomex?", "What is missing?"].map((c) => (
-          <button key={c} className="mono border border-line px-1.5 py-0.5 text-[10px] text-dim transition-colors hover:border-accent hover:text-accent" onClick={() => command(c)}>
-            {c}
-          </button>
-        ))}
-      </div>
-
-      <form
-        className="mt-2 flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          command(input);
-        }}
-      >
-        <input className="field min-w-0 flex-1" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Or type a command" aria-label="Command for the lab" />
-        <button className="btn" type="submit">Send</button>
-      </form>
+      {chatBox("Type to the lab")}
     </div>
   );
 }

@@ -49,9 +49,32 @@ RESOURCES = [
     dict(id="jaxa-solid-combustion", agency="JAXA", kind="link", listed=False, title="JAXA leaflet: combustion experiments in microgravity on Kibo",
          url="https://humans-in-space.jaxa.jp/2026/07/Leaflet_CombustionExperimentInMicrogravity.pdf", file=None, topics=["partner", "materials"],
          summary="JAXA's leaflet on its solid combustion experiments in the Japanese Experiment Module. Link only; the content is not stored here."),
-    dict(id="saffire-eoportal", agency="ESA (eoPortal)", kind="link", listed=False, title="Saffire (Spacecraft Fire Experiment) on eoPortal",
+    dict(id="saffire-eoportal", agency="eoPortal", kind="link", listed=False, title="Saffire (Spacecraft Fire Experiment) on eoPortal",
          url="https://eoportal.org/satellite-missions/saffire", file=None, topics=["partner", "prevention"],
          summary="Mission summary of Saffire, the large-scale fire experiments flown on Cygnus, developed by NASA with an international team that included ESA. Link only; the content is not stored here."),
+    # Added after a web search on other agencies' work. Links with a one-line description written for this
+    # project from what the search returned; none of their text is stored.
+    dict(id="jaxa-scem", agency="JAXA", kind="link", listed=False, title="Solid Combustion Experiment Module (SCEM) on Kibo",
+         url="https://humans-in-space.jaxa.jp/en/biz-lab/experiment/facility/pm/scem", file=None, topics=["partner", "materials", "hardware", "prevention"],
+         summary="JAXA's facility in the Kibo module for measuring the limiting oxygen concentration at which flame spread over solid fuels is sustained. Link only."),
+    dict(id="jaxa-flare-theme", agency="JAXA", kind="link", listed=False, title="FLARE: Fundamental Research on International Standard of Fire Safety in Space",
+         url="https://humans-in-space.jaxa.jp/en/biz-lab/experiment/theme/detail/000807.html", file=None, topics=["partner", "materials", "prevention"],
+         summary="JAXA's theme page for FLARE: flame spread over flat, rod and insulated-wire samples in microgravity, toward an international flammability standard. Link only."),
+    dict(id="esa-exfires", agency="ESA", kind="link", listed=False, title="Exploration Fire Safety (ExFireS)",
+         url="https://explorationscience.esa.int/?p=354", file=None, topics=["partner", "materials", "prevention", "modeling"],
+         summary="ESA Exploration Science project to improve fire safety in space vehicles through material flammability experiments in microgravity that validate other facilities and support models. Link only."),
+    dict(id="zarm-oxygen", agency="DLR / ZARM", kind="link", listed=False, title="Increased fire risk during astronautic space missions (Bremen Drop Tower)",
+         url="https://www.zarm.uni-bremen.de/en/news-list/news-display/increased-fire-risk-during-astronautic-space-missions", file=None, topics=["partner", "materials", "prevention", "enriched-oxygen"],
+         summary="ZARM (University of Bremen) drop-tower study of acrylic sheets across oxygen, pressure and opposed flow: lower pressure dampens the flame, but the effect of higher oxygen dominates. Directly on the enriched-atmosphere question. Link only."),
+    dict(id="zarm-flare-g", agency="DLR / ZARM", kind="link", listed=False, title="Flammability at Reduced Gravity (FLARE-G)",
+         url="https://zarm.uni-bremen.de/de/fallturm/projekte/combustion/flare-g.html", file=None, topics=["partner", "materials", "prevention"],
+         summary="The DLR-funded German part of the JAXA-coordinated FLARE project: burning of plastic films in changing atmospheres at pressures up to 1 bar, in concurrent and opposed flow. Link only."),
+    dict(id="zarm-iss", agency="DLR / ZARM", kind="link", listed=False, title="Flame propagation experiments on the ISS",
+         url="https://www.zarm.uni-bremen.de/en/news-list/news-display/flame-propagation-experiments-on-the-iss", file=None, topics=["partner", "materials"],
+         summary="ZARM and Gifu University, with JAXA and DLR, running station experiments on how fire spreads along different material samples, with longer test times than the drop tower. Link only."),
+    dict(id="cnes-partial-g", agency="CNES", kind="link", listed=False, title="Flame spread over electrical wires from microgravity to Moon and Mars gravity (CNES parabolic flights)",
+         url="https://discovery.ucl.ac.uk/10154634/1/PCI39_CNES-Partial-G-report_manuscript.pdf", file=None, topics=["partner", "partial-gravity", "prevention", "materials"],
+         summary="Research paper from CNES-funded parabolic flights with the DIAMONDS rig (Sorbonne Universite): opposed flame spread over wire insulation at 0 g, lunar and Martian gravity. One of the few partial-gravity data sets; PSI has none. Link only."),
 ]
 
 NOISE = re.compile(r"^(menu|search|advanced search|toggle navigation|visit nasa\.gov|suggested searches|explore|share|details|related terms|read more|keep exploring|national aeronautics and space administration)$", re.I)

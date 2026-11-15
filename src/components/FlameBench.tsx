@@ -4,7 +4,8 @@
 // physics simulation: the drawing is an illustration, the outcomes are data.
 // Code generated with SI assistance (Claude Code).
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useControl } from "@/lib/useControl";
 import { TESTS, describeTest, distance, phaseGroup, type PhaseGroup } from "@/lib/lab";
 import type { TestRecord } from "@/lib/types";
 import { PSI_PER_ATM } from "@/lib/types";
@@ -26,9 +27,9 @@ function matchesDiluent(t: TestRecord, d: Diluent) {
 const OUT_ENDS = ["Extinction", "Self-extinguished", "Did not sustain burning"];
 
 export function FlameBench({ o2, psi, onChange }: { o2: number; psi: number; onChange: (o2: number, psi: number) => void }) {
-  const [fuel, setFuel] = useState<PhaseGroup>("liquid");
-  const [flow, setFlow] = useState(10);
-  const [diluent, setDiluent] = useState<Diluent>("none");
+  const [fuel, setFuel] = useControl<PhaseGroup>("fire.fuel");
+  const [flow, setFlow] = useControl<number>("fire.flow");
+  const [diluent, setDiluent] = useControl<Diluent>("fire.diluent");
 
   const result = useMemo(() => {
     const target = { o2_pct: o2, pressure_atm: psi / PSI_PER_ATM, flow_cm_s: flow };

@@ -7,6 +7,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CabinSim, type CrewReading } from "@/lib/cabinSim";
+import { gravityChoice, gravityOf } from "@/lib/controls";
+import { useControl, useControlAction } from "@/lib/useControl";
 
 type Show = "flame" | "o2" | "co";
 const GRAVITY: [number, string][] = [[0, "Microgravity"], [0.17, "Moon"], [0.38, "Mars"], [1, "Earth"]];
@@ -97,13 +99,16 @@ function paint(ctx: CanvasRenderingContext2D, sim: CabinSim, off: HTMLCanvasElem
 export function CabinView({ o2, psi, defaultGravity }: { o2: number; psi: number; defaultGravity: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const simRef = useRef<CabinSim | null>(null);
-  const [gravity, setGravity] = useState<number | null>(null);
-  const [fans, setFans] = useState(true);
-  const [show, setShow] = useState<Show>("flame");
-  const [running, setRunning] = useState(true);
+  const [gravityPick, setGravityPick] = useControl<string>("cabin.gravity");
+  const [fans, setFans] = useControl<boolean>("cabin.fans");
+  const [show, setShow] = useControl<Show>("cabin.show");
+  const [running, setRunning] = useControl<boolean>("cabin.running");
+  const setGravity = (v: number) => setGravityPick(gravityChoice(v));
+  useControlAction("cabin.extinguisher", () => simRef.current?.fireExtinguisher());
+  useControlAction("cabin.restart", () => simRef.current?.reset());
   const [hud, setHud] = useState<(CrewReading & { det: number | null; peak: number }) | null>(null);
   const live = useRef({ show, running });
-  const g = gravity ?? defaultGravity;
+  const g = gravityOf(gravityPick, defaultGravity);
 
   useEffect(() => {
     live.current = { show, running };

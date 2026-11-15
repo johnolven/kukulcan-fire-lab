@@ -13,6 +13,7 @@
 import { resolveDesign, runSwarm } from "./agents";
 import { ENVIRONMENTS } from "./environments";
 import { describeTest, gaps, getInvestigation, label, materialEvidence, materials, nearestTests, rankInvestigations, stats } from "./lab";
+import { ACTION_IDS, ACTIONS, CONTROL_IDS, describeControls } from "./controls";
 import { numArg, str, type McpTool } from "./mcp";
 import { searchLibrary } from "./resources";
 import { PSI_PER_ATM } from "./types";
@@ -156,8 +157,8 @@ export const UI_TOOLS = [
   {
     name: "open_panel",
     description:
-      "Change what the centre stage of the lab shows. fire = the flame and what nearby tests did; ask = the orchestrator and the library of NASA and partner-agency resources (Apollo 1, Apollo 13, Mir, Spinoff, JAXA); videos = footage of the experiments streamed from NASA; timeline = incidents, Earth technology and investigations since 1967; scenarios = the cabin fire simulator where a fire starts and the crew responds; lab = five published fire models (flammability map, Earth test versus orbit, test probability, flame temperature, burning droplet); environment = the 3D model of the cabin in full size with its facts; analytics = the dashboard of charts built on request; voice = the large voice visualizer; map = evidence map of every test by oxygen and pressure; investigations = table of investigations; tests = table of test records; materials = materials table; gaps = what is untested; brief = the analysts; connections = diagram of how the voice, the MCP servers and NASA connect.",
-    parameters: { type: "object", properties: { panel: { type: "string", enum: ["fire", "ask", "videos", "timeline", "scenarios", "lab", "environment", "analytics", "voice", "map", "investigations", "tests", "materials", "gaps", "brief", "connections"] } }, required: ["panel"] },
+      "Change what the centre stage of the lab shows. fire = the flame and what nearby tests did; ranking = investigations ranked for this design; ask = the orchestrator and the library of NASA and partner-agency resources (Apollo 1, Apollo 13, Mir, Spinoff, JAXA); videos = footage of the experiments streamed from NASA; timeline = incidents, Earth technology and investigations since 1967; scenarios = the cabin fire simulator where a fire starts and the crew responds; lab = five published fire models (flammability map, Earth test versus orbit, test probability, flame temperature, burning droplet); environment = the 3D model of the cabin in full size with its facts; analytics = the dashboard of charts built on request; voice = the large voice visualizer; map = evidence map of every test by oxygen and pressure; investigations = table of investigations; tests = table of test records; materials = materials table; gaps = what is untested; brief = the analysts; connections = diagram of how the voice, the MCP servers and NASA connect.",
+    parameters: { type: "object", properties: { panel: { type: "string", enum: ["fire", "ranking", "ask", "videos", "timeline", "scenarios", "lab", "environment", "analytics", "voice", "map", "investigations", "tests", "materials", "gaps", "brief", "connections"] } }, required: ["panel"] },
   },
   {
     name: "focus_investigation",
@@ -168,6 +169,31 @@ export const UI_TOOLS = [
     name: "filter_tests",
     description: "Filter the test table and the map by fuel phase and/or material text. Pass empty strings to clear.",
     parameters: { type: "object", properties: { phase: { type: "string", enum: ["", "solid", "liquid", "gas", "smoke"] }, material: { type: "string" } } },
+  },
+  {
+    name: "set_controls",
+    description:
+      "Set one or more controls anywhere in the lab: sliders, selectors and switches of the fire bench, the scenarios, the lab models, the live cabin, and the layout. Send every change the request needs in one call; they are applied in order and the matching view opens by itself. Values: a number for sliders, true or false for switches, one of the listed options for selectors.",
+    parameters: {
+      type: "object",
+      properties: {
+        changes: {
+          type: "array",
+          items: { type: "object", properties: { control: { type: "string", enum: CONTROL_IDS }, value: { type: "string", description: "Number, true/false, or option name, as text." } }, required: ["control", "value"] },
+        },
+      },
+      required: ["changes"],
+    },
+  },
+  {
+    name: "press_control",
+    description: `Press a button in the lab. ${ACTION_IDS.map((id) => `${id}: ${ACTIONS[id].label}`).join("; ")}.`,
+    parameters: { type: "object", properties: { action: { type: "string", enum: ACTION_IDS } }, required: ["action"] },
+  },
+  {
+    name: "read_controls",
+    description: "Read the current state of the whole lab: environment, atmosphere, the view on the stage and the value of every control. Call it when you need to know what is on screen before changing or describing it.",
+    parameters: { type: "object", properties: {} },
   },
   {
     name: "play_video",
@@ -200,6 +226,8 @@ How to work:
 - The centre stage shows one view at a time and the page never scrolls. Whenever the user asks to see something, call open_panel so it appears: fire or flame -> fire; the map -> map; tables, tests or records -> tests; investigations -> investigations; materials -> materials; how it connects, nodes or MCP -> connections. the cabin, the model or 3D -> environment; a simulation, a scenario or 'what if a fire starts' -> scenarios; fire models, the flammability map, flame temperature or the lab -> lab. After showing an environment or changing the atmosphere, open fire unless they asked for another view.
 - For history or background (Apollo 1, Apollo 13, Mir, how NASA technology reached Earth, other agencies), call search_library and open_panel with ask.
 - To show footage of an experiment, call play_video. For NASA's introduction video, call watch_nasa_video. For dates and history at a glance, open_panel with timeline.
+- You can operate every control of the lab with set_controls and press_control. When the user describes a situation ("fire in stowage, detected at 90 seconds, fans off, play it"), send all the changes in one set_controls call, then press_control if a button is needed. To run a fire in the live cabin, set lab.case to cabin and press cabin.restart. If you are unsure what is on screen, call read_controls first; its answer arrives as a LAB RESULT.
+- Controls: ${describeControls()}.
 - For a chart, graph, comparison or dashboard, call build_chart with the request in plain words and say the chart is on the stage. You cannot see the chart, so do not describe its numbers.
 - Data tools (check_design, check_material, explain_investigation, rank_for_design, name_the_gaps, lab_numbers, swarm_brief, search_library) answer a moment later in a system message that starts with "LAB RESULT". After calling one, say at most "One moment" and stop. When the LAB RESULT arrives, speak its "say" text in your own words, under four sentences, reading numbers naturally.
 - If a LAB RESULT has not arrived, do not guess and do not say the lab has no information. Wait for it.

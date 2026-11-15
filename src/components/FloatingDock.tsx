@@ -1,7 +1,7 @@
 "use client";
-// A panel that sits in its slot in the layout until the user drags it by its header
-// (any element marked data-drag-handle); from then on it floats where it was dropped.
-// The position is remembered; double-click the header to send it back to its slot.
+// Holds one panel in two places without remounting it: docked in its slot in the
+// layout, or floating over the page, where it can be dragged by its header (any
+// element marked data-drag-handle). The floating position is remembered.
 // Code generated with SI assistance (Claude Code).
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -13,27 +13,25 @@ interface Pos {
   y: number;
 }
 
-export function FloatingDock({ children }: { children: ReactNode }) {
+export function FloatingDock({ floating, children }: { floating: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<Pos | null>(null); // null = docked in its slot
+  const [pos, setPos] = useState<Pos | null>(null); // null = bottom-right corner
   const drag = useRef<{ dx: number; dy: number } | null>(null);
-  const lastDown = useRef(0);
 
   const clamp = useCallback((p: Pos): Pos => {
     const el = ref.current;
-    const w = el?.offsetWidth ?? 380;
+    const w = el?.offsetWidth ?? 360;
     const h = el?.offsetHeight ?? 300;
     return { x: Math.min(Math.max(8, p.x), Math.max(8, window.innerWidth - w - 8)), y: Math.min(Math.max(8, p.y), Math.max(8, window.innerHeight - h - 8)) }; // whole panel stays on screen
   }, []);
 
-  // Restore the saved position after mount, and keep the panel on screen when the window resizes.
   useEffect(() => {
     const restore = window.setTimeout(() => {
       try {
         const saved = JSON.parse(window.localStorage.getItem(KEY) ?? "null");
         if (saved && typeof saved.x === "number" && typeof saved.y === "number") setPos(clamp(saved));
       } catch {
-        /* storage unavailable: stay in the default corner */
+        /* storage unavailable: use the corner */
       }
     }, 0);
     const onResize = () => setPos((p) => (p ? clamp(p) : p));
@@ -45,23 +43,9 @@ export function FloatingDock({ children }: { children: ReactNode }) {
   }, [clamp]);
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!floating) return;
     const target = e.target as HTMLElement;
     if (!target.closest("[data-drag-handle]") || target.closest("button, input, a")) return;
-    // Two quick presses on the header send the panel back to its corner. (Detected here
-    // because pointer capture retargets the browser's own double-click event.)
-    const now = e.timeStamp;
-    if (now - lastDown.current < 350) {
-      lastDown.current = 0;
-      drag.current = null;
-      setPos(null);
-      try {
-        window.localStorage.removeItem(KEY);
-      } catch {
-        /* ignore */
-      }
-      return;
-    }
-    lastDown.current = now;
     const box = ref.current!.getBoundingClientRect();
     drag.current = { dx: e.clientX - box.left, dy: e.clientY - box.top };
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -89,8 +73,8 @@ export function FloatingDock({ children }: { children: ReactNode }) {
   return (
     <div
       ref={ref}
-      className={pos ? "fixed z-40 w-[min(360px,calc(100vw-24px))] touch-none" : "relative shrink-0 touch-none"}
-      style={pos ? { left: pos.x, top: pos.y } : undefined}
+      className={floating ? "fixed z-40 w-[min(360px,calc(100vw-24px))] touch-none" : "min-h-0 min-w-0"}
+      style={floating ? (pos ? { left: pos.x, top: pos.y } : { right: 12, bottom: 12 }) : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

@@ -11,6 +11,8 @@ import { ENVIRONMENTS, environmentById } from "@/lib/environments";
 import { TESTS, gaps as computeGaps, getInvestigation, label, nearestTests, queryTests, rankInvestigations, stats as computeStats, type PhaseGroup } from "@/lib/lab";
 import type { FileEntry } from "@/lib/types";
 import { PSI_PER_ATM } from "@/lib/types";
+import { CONTROLS, controls, setTableState, type ActionId, type ControlId } from "@/lib/controls";
+import { useControl } from "@/lib/useControl";
 import type { UiAction } from "@/lib/voiceTools";
 import { AnalyticsView, requestChart } from "./AnalyticsView";
 import { EnvironmentDrawing } from "./Diagrams";
@@ -28,10 +30,11 @@ import { VideosView, requestVideo } from "./VideosView";
 import { VoiceDock } from "./VoiceDock";
 import { VoiceStage } from "./VoiceStage";
 
-export type View = "fire" | "ask" | "videos" | "timeline" | "scenarios" | "lab" | "environment" | "analytics" | "voice" | "map" | "investigations" | "tests" | "materials" | "gaps" | "brief" | "connect" | "detail";
+export type View = "fire" | "ranking" | "ask" | "videos" | "timeline" | "scenarios" | "lab" | "environment" | "analytics" | "voice" | "map" | "investigations" | "tests" | "materials" | "gaps" | "brief" | "connect" | "detail";
 
 const VIEWS: [View, string, string][] = [
   ["fire", "Fire", "What happens to a flame in this cabin"],
+  ["ranking", "Ranking", "Investigations ranked for this design, with the reasons"],
   ["ask", "Ask + Library", "One question across every server, and the NASA and partner library"],
   ["videos", "Videos", "Footage of the experiments, streamed from NASA"],
   ["timeline", "Timeline", "Incidents, Earth technology and investigations since 1967"],
@@ -60,7 +63,7 @@ const VIEW_ALIASES: Record<string, View> = {
   lab: "lab", laboratory: "lab", models: "lab", laboratorio: "lab", modelos: "lab",
   voice: "voice", voz: "voice", assistant: "voice", asistente: "voice",
   analytics: "analytics", dashboard: "analytics", charts: "analytics", chart: "analytics", analitica: "analytics", "analítica": "analytics", graficas: "analytics", "gráficas": "analytics",
-  map: "map", mapa: "map", evidence: "map", ranking: "map",
+  map: "map", mapa: "map", evidence: "map", ranking: "ranking", rank: "ranking",
   investigations: "investigations", investigaciones: "investigations",
   tests: "tests", tables: "tests", table: "tests", records: "tests", tablas: "tests", pruebas: "tests",
   materials: "materials", materiales: "materials",
@@ -118,30 +121,35 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
   const [view, setView] = useState<View>("fire");
   const [brief, setBrief] = useState<Brief | null>(null);
   const [briefLoading, setBriefLoading] = useState(false);
-  const [drawing, setDrawing] = useState<"3d" | "2d">("3d");
+  const [drawing, setDrawing] = useControl<"3d" | "2d">("env.drawing");
 
   // Side columns: drag the bar between a column and the stage to resize it.
-  const [cols, setCols] = useState({ left: 292, right: 350 });
+  const [leftW, setLeftW] = useControl<number>("layout.left");
+  const [rightW, setRightW] = useControl<number>("layout.right");
+  const cols = { left: leftW, right: rightW };
+  // The voice starts docked on the right; minimized, it floats and the stage takes the space.
+  const [voiceMode, setVoiceMode] = useControl<"docked" | "floating">("layout.voice");
+  const voiceFloating = voiceMode === "floating";
   useEffect(() => {
     const t = window.setTimeout(() => {
       try {
-        const saved = JSON.parse(window.localStorage.getItem("firelab:cols") ?? "null");
-        if (saved && typeof saved.left === "number" && typeof saved.right === "number") setCols({ left: clampCol(saved.left), right: clampCol(saved.right) });
+        const saved = JSON.parse(window.localStorage.getItem("firelab:cols-v2") ?? "null");
+        if (saved && typeof saved.left === "number" && typeof saved.right === "number") {
+          setLeftW(clampCol(saved.left));
+          setRightW(clampCol(saved.right));
+        }
       } catch {
         /* keep defaults */
       }
     }, 0);
     return () => window.clearTimeout(t);
-  }, []);
+  }, [setLeftW, setRightW]);
   const saveCols = useCallback(() => {
-    setCols((c) => {
-      try {
-        window.localStorage.setItem("firelab:cols", JSON.stringify(c));
-      } catch {
-        /* ignore */
-      }
-      return c;
-    });
+    try {
+      window.localStorage.setItem("firelab:cols-v2", JSON.stringify({ left: controls.get<number>("layout.left"), right: controls.get<number>("layout.right") }));
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const env = ENVIRONMENTS.find((e) => e.id === envId)!;
@@ -245,6 +253,30 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
           setPhase(s(a.args.phase));
           setMaterial(s(a.args.material));
           break;
+        case "set_controls": {
+          const changes = Array.isArray(a.args.changes) ? (a.args.changes as { control?: unknown; value?: unknown }[]) : [];
+          for (const c of changes) {
+            const id = s(c.control) as ControlId;
+            if (!(id in CONTROLS)) continue;
+            if (controls.set(id, c.value) === null) continue;
+            // bring the control into view
+            const area = CONTROLS[id].view;
+            if (id.startsWith("cabin.")) controls.set("lab.case", "cabin");
+            if (area === "fire" || area === "scenarios" || area === "lab" || area === "environment") setView(area);
+          }
+          break;
+        }
+        case "press_control": {
+          const id = s(a.args.action) as ActionId;
+          if (id.startsWith("scenario.")) setView("scenarios");
+          if (id.startsWith("cabin.")) {
+            controls.set("lab.case", "cabin");
+            setView("lab");
+          }
+          // let the view mount before the button is pressed
+          window.setTimeout(() => controls.press(id), 120);
+          break;
+        }
         case "play_video": {
           setView("videos");
           requestVideo(s(a.args.investigation), s(a.args.search));
@@ -268,6 +300,11 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
     },
     [pickEnv, openInvestigation, runBrief],
   );
+
+  // keep the registry's picture of the table current, for read_controls
+  useEffect(() => {
+    setTableState({ environment: envId, oxygen_pct: o2, pressure_psi: psi, stage_view: view, fuel_filter: phase || null, material_filter: material || null, open_investigation: view === "detail" ? selected : null });
+  }, [envId, o2, psi, view, phase, material, selected]);
 
   const current = VIEWS.find(([v]) => v === view);
 
@@ -300,8 +337,9 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
       </header>
 
       <div
-        className="mt-2 grid min-h-0 flex-1 gap-y-2 lg:grid-cols-[var(--lw)_10px_minmax(0,1fr)_10px_var(--rw)] lg:grid-rows-[minmax(0,1fr)]"
-        style={{ "--lw": `${cols.left}px`, "--rw": `${cols.right}px` } as React.CSSProperties}
+        className={`mt-2 grid min-h-0 flex-1 gap-y-2 lg:grid-rows-[minmax(0,1fr)] ${voiceFloating ? "lg:grid-cols-[var(--lw)_10px_minmax(0,1fr)]" : "lg:grid-cols-[var(--lw)_10px_minmax(0,1fr)_10px_var(--rw)]"}`}
+        // side columns never squeeze the stage below about 40% of the window
+        style={{ "--lw": `min(${cols.left}px, 28vw)`, "--rw": `min(${cols.right}px, 32vw)` } as React.CSSProperties}
       >
         {/* left: the environment on the table, always visible */}
         <aside className="panel scroll flex min-h-0 flex-col p-3" style={{ overflowX: "hidden" }}>
@@ -356,7 +394,7 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
           </div>
         </aside>
 
-        <Resizer label="Resize the environment panel" width={cols.left} direction={1} fallback={292} onChange={(w) => setCols((c) => ({ ...c, left: w }))} onCommit={saveCols} />
+        <Resizer label="Resize the environment panel" width={cols.left} direction={1} fallback={292} onChange={setLeftW} onCommit={saveCols} />
 
         {/* centre: verdict + the stage */}
         <main className="flex min-h-0 min-w-0 flex-col gap-2">
@@ -451,6 +489,15 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
                 <AnalyticsView />
               </div>
 
+              {view === "ranking" && (
+                <div>
+                  <div className="mb-2 flex flex-wrap items-baseline gap-x-3">
+                    <h2 className="text-[16px] font-medium">Investigations ranked for this design</h2>
+                    <span className="text-[12.5px] text-dim">Scored out of 100 for {o2}% oxygen at {psi} psi. Click one to open it.</span>
+                  </div>
+                  <Ranking ranked={ranked} onOpen={openInvestigation} selected={selected} />
+                </div>
+              )}
               {view === "fire" && <FlameBench o2={o2} psi={psi} onChange={(o, p) => { setO2(o); setPsi(p); }} />}
 
               {view === "map" && (
@@ -503,19 +550,11 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
           </section>
         </main>
 
-        <Resizer label="Resize the ranking and voice panel" width={cols.right} direction={-1} fallback={350} onChange={(w) => setCols((c) => ({ ...c, right: w }))} onCommit={saveCols} />
-
-        {/* right: ranking and the voice console */}
-        <aside className="flex min-h-0 min-w-0 flex-col gap-2">
-          <div className="panel flex min-h-0 flex-1 flex-col p-3">
-            <div className="label mb-2">Investigations ranked for this design</div>
-            <Ranking ranked={ranked} onOpen={openInvestigation} selected={view === "detail" ? selected : null} compact />
-          </div>
-          {/* Sits here by default; drag it by its header to float it anywhere. */}
-          <FloatingDock>
-            <VoiceDock o2={o2} psi={psi} onAction={onAction} />
-          </FloatingDock>
-        </aside>
+        {/* right: the voice. Minimized, it floats over the page and this column closes. */}
+        {!voiceFloating && <Resizer label="Resize the voice panel" width={cols.right} direction={-1} fallback={400} onChange={setRightW} onCommit={saveCols} />}
+        <FloatingDock floating={voiceFloating}>
+          <VoiceDock o2={o2} psi={psi} onAction={onAction} floating={voiceFloating} onToggleMode={() => setVoiceMode(voiceFloating ? "docked" : "floating")} />
+        </FloatingDock>
       </div>
 
       <footer

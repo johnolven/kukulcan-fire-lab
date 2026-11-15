@@ -5,6 +5,8 @@
 // Code generated with SI assistance (Claude Code).
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { gravityChoice, gravityOf } from "@/lib/controls";
+import { useControl, useControlAction } from "@/lib/useControl";
 import { EVENT_LABEL, K, LEVELS, MODEL_NOTE, ZONES, compareResponses, detectionLimit, runScenario, type Actions, type Sample, type ScenarioInput, type ZoneId } from "@/lib/scenario";
 
 const LEVEL_COLOR = ["var(--ok)", "var(--warn)", "#ec835a", "var(--danger)"];
@@ -128,16 +130,23 @@ function ModuleScene({ sample, crew, peak }: { sample: Sample; crew: "inside" | 
 }
 
 export function ScenarioView({ o2, psi, defaultGravity }: { o2: number; psi: number; defaultGravity: number }) {
-  const [zone, setZone] = useState<ZoneId>("cabin");
-  const [det, setDet] = useState(60);
-  const [gravity, setGravity] = useState<number | null>(null);
-  const [act, setAct] = useState<Actions>({ fan: true, ext: true, mask: false, leave: false, inert: false });
-  const [relief, setRelief] = useState(true);
+  const [zone, setZone] = useControl<ZoneId>("scenario.zone");
+  const [det, setDet] = useControl<number>("scenario.detection");
+  const [gravityPick, setGravityPick] = useControl<string>("scenario.gravity");
+  const [fan, setFan] = useControl<boolean>("scenario.fans_off");
+  const [mask, setMask] = useControl<boolean>("scenario.masks");
+  const [ext, setExt] = useControl<boolean>("scenario.extinguisher");
+  const [inert, setInert] = useControl<boolean>("scenario.nitrogen");
+  const [leave, setLeave] = useControl<boolean>("scenario.leave");
+  const [relief, setRelief] = useControl<boolean>("scenario.relief");
+  const act: Actions = useMemo(() => ({ fan, ext, mask, leave, inert }), [fan, ext, mask, leave, inert]);
+  const setAct = (a: Actions) => { setFan(a.fan); setExt(a.ext); setMask(a.mask); setLeave(a.leave); setInert(a.inert); };
+  const setGravity = (v: number) => setGravityPick(gravityChoice(v));
   const [hover, setHover] = useState<number | null>(null);
   const [clock, setClock] = useState<number | null>(null); // seconds into the playback; null = not started
   const [playing, setPlaying] = useState(false);
   const lastFrame = useRef(0);
-  const g = gravity ?? defaultGravity;
+  const g = gravityOf(gravityPick, defaultGravity);
 
   const input: ScenarioInput = useMemo(() => ({ p0_kpa: psi * 6.895, x0: o2 / 100, g, zone, det, relief, ...act }), [o2, psi, g, zone, det, relief, act]);
   const r = useMemo(() => runScenario(input), [input]);
@@ -167,6 +176,10 @@ export function ScenarioView({ o2, psi, defaultGravity }: { o2: number; psi: num
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [playing]);
+
+  // the voice and the chat can start and pause the playback
+  useControlAction("scenario.play", () => { setClock(0); setPlaying(true); });
+  useControlAction("scenario.pause", () => setPlaying(false));
 
   const at = clock != null ? Math.min(r.samples.length - 1, Math.round(clock / 5)) : null;
   const shown = hover ?? at;

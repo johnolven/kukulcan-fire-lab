@@ -35,6 +35,8 @@ export interface Hit {
 }
 
 export function searchLibrary(query: string, opts: { resource?: string; topic?: string; limit?: number } = {}): Hit[] {
+  // "what did X teach us" is a question about lessons: look for those sections.
+  if (/teach|taught|learn|lesson|ense[ñn]|aprend|lecci/i.test(query)) query += " lessons learned changes";
   const q = [...new Set(words(query))];
   if (!q.length) return [];
   const hits: Hit[] = [];
@@ -50,7 +52,7 @@ export function searchLibrary(query: string, opts: { resource?: string; topic?: 
         const stem = w.length > 5 ? w.slice(0, -1) : w;
         const n = hay.split(stem).length - 1;
         if (n) score += 1 + Math.min(2, n) * 0.6;
-        if (sec.includes(stem)) score += 0.8;
+        if (sec.includes(stem)) score += 1.6;
         if (titleWords.has(w)) score += 0.5;
       }
       if (score > 0) hits.push({ resource: r, passage: p, score: score / Math.sqrt(1 + p.text.length / 900) });

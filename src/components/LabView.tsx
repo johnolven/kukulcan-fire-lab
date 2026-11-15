@@ -4,8 +4,9 @@
 // table; the white ring on each graph is your case.
 // Code generated with SI assistance (Claude Code).
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import * as FM from "@/lib/fireModels";
+import { useControl } from "@/lib/useControl";
 import { CabinView } from "./CabinView";
 import { Surface3D, type SurfaceSpec } from "./Surface3D";
 
@@ -80,15 +81,15 @@ function Dot({ cx, cy, text }: { cx: number; cy: number; text?: string }) {
 }
 
 export function LabView({ o2, psi, defaultGravity }: { o2: number; psi: number; defaultGravity: number }) {
-  const [which, setWhich] = useState<CaseId>("cabin");
-  const [u, setU] = useState(10);
-  const [tau, setTau] = useState(0.1);
-  const [moc, setMoc] = useState(30);
-  const [shift, setShift] = useState(4);
-  const [scatter, setScatter] = useState(1);
-  const [n, setN] = useState(3);
-  const [d0, setD0] = useState(3);
-  const [dim, setDim] = useState<"2d" | "3d">("2d");
+  const [which, setWhich] = useControl<CaseId>("lab.case");
+  const [u, setU] = useControl<number>("lab.airflow");
+  const [tau, setTau] = useControl<number>("lab.thickness");
+  const [moc, setMoc] = useControl<number>("lab.material_limit");
+  const [shift, setShift] = useControl<number>("lab.orbit_shift");
+  const [scatter, setScatter] = useControl<number>("lab.scatter");
+  const [n, setN] = useControl<number>("lab.samples");
+  const [d0, setD0] = useControl<number>("lab.droplet");
+  const [dim, setDim] = useControl<"2d" | "3d">("lab.dimension");
   const x = o2 / 100;
   const kpa = psi * 6.895;
 
@@ -300,7 +301,7 @@ export function LabView({ o2, psi, defaultGravity }: { o2: number; psi: number; 
       surface: null as SurfaceSpec | null,
       source: FM.SOURCES.droplet,
     };
-  }, [which, u, tau, moc, shift, scatter, n, d0, o2, psi, x, kpa]);
+  }, [which, u, tau, moc, shift, scatter, n, d0, o2, psi, x, kpa, setU, setTau, setMoc, setShift, setScatter, setN, setD0]);
 
   const current = CASES.find(([c]) => c === which)!;
   return (
