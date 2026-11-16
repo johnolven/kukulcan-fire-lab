@@ -6,6 +6,8 @@
 // The model compares decisions. It does not certify anything.
 // Code generated with SI assistance (Claude Code).
 
+import { t } from "./i18n";
+
 const R = 8.314;
 const TW = 295; // wall and initial gas temperature, K
 export const K = {
@@ -142,13 +144,13 @@ export function runScenario(P: ScenarioInput, tmax = 600): ScenarioResult {
   let level: 0 | 1 | 2 | 3 = 0;
   const why: string[] = [];
   const raise = (l: 1 | 2 | 3) => { if (l > level) level = l; };
-  if (peak >= K.CAT && !crew.gone) { raise(3); why.push("Fire passes 200 kW with the crew inside"); }
-  if (crew.burn) { raise(2); why.push("Fire passes 50 kW: burn injuries"); }
-  if (crew.hypox) { raise(2); why.push("Oxygen breathed falls below 16%"); }
-  if (peak >= K.CAT && crew.gone) { raise(2); why.push("Module lost after the crew leaves"); }
-  if (crew.maxCO > K.SMAC_CO) { raise(1); why.push("Carbon monoxide above the 1-hour limit (55 ppm)"); }
-  if (crew.maxCO2 > K.SMAC_CO2) { raise(1); why.push("Carbon dioxide above the 1-hour limit (13,000 ppm)"); }
-  if (P.ext && crew.extOK === false) why.push("Extinguisher could not be used: fire too large or crew gone");
+  if (peak >= K.CAT && !crew.gone) { raise(3); why.push(t("Fire passes 200 kW with the crew inside")); }
+  if (crew.burn) { raise(2); why.push(t("Fire passes 50 kW: burn injuries")); }
+  if (crew.hypox) { raise(2); why.push(t("Oxygen breathed falls below 16%")); }
+  if (peak >= K.CAT && crew.gone) { raise(2); why.push(t("Module lost after the crew leaves")); }
+  if (crew.maxCO > K.SMAC_CO) { raise(1); why.push(t("Carbon monoxide above the 1-hour limit (55 ppm)")); }
+  if (crew.maxCO2 > K.SMAC_CO2) { raise(1); why.push(t("Carbon dioxide above the 1-hour limit (13,000 ppm)")); }
+  if (P.ext && crew.extOK === false) why.push(t("Extinguisher could not be used: fire too large or crew gone"));
   return { samples, events, peak, pmax: Math.max(...samples.map((s) => s.p)), tmax: Math.max(...samples.map((s) => s.T)), burned: Math.min(burned, zone.fuel), outWhy, outT, crew, level, why };
 }
 

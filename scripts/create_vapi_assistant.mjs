@@ -64,7 +64,7 @@ if (env.NEXT_PUBLIC_VAPI_ASSISTANT_ID && key) {
 
 const body = {
   name: "Kukulcan Fire Lab",
-  firstMessage: lang === "en" ? "Lab is ready. Which environment do you want to look at?" : "Laboratorio listo. ¿Qué entorno quieres revisar?",
+  firstMessage: lang === "en" ? "Welcome to the lab. Where would you like to start: spacecraft design, materials, capsule, station, or the fire laboratory?" : "Bienvenido al laboratorio. ¿Por dónde quieres empezar: diseño de la nave, materiales, cápsula, estación o laboratorio de fuego?",
   model: {
     provider: "openai",
     model: "gpt-4.1",
@@ -89,7 +89,7 @@ if (update) {
     console.error("--update needs NEXT_PUBLIC_VAPI_ASSISTANT_ID in .env.");
     process.exit(1);
   }
-  const r = await fetch(`${API}/assistant/${id}`, { method: "PATCH", headers, body: JSON.stringify({ model: body.model, clientMessages: body.clientMessages }) });
+  const r = await fetch(`${API}/assistant/${id}`, { method: "PATCH", headers, body: JSON.stringify({ model: body.model, clientMessages: body.clientMessages, firstMessage: body.firstMessage }) });
   if (!r.ok) {
     console.error(`Vapi rejected the update (HTTP ${r.status}): ${(await r.text()).slice(0, 600)}`);
     process.exit(1);

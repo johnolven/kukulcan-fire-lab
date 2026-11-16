@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { signal } from "@/lib/activity";
 import { COMBUSTION, TESTS, describeTest, getInvestigation, label } from "@/lib/lab";
 import type { FileEntry, TestRecord } from "@/lib/types";
+import { useT } from "@/lib/useControl";
 import { bytes } from "./Panels";
 
 const EVENT = "firelab:video";
@@ -32,6 +33,7 @@ export function VideosView({ files }: { files: Record<string, FileEntry[]> }) {
   const [src, setSrc] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "error">("idle");
   const videoRef = useRef<HTMLVideoElement>(null);
+  const t = useT();
 
   const inv = getInvestigation(acc);
   const list = useMemo(() => {
@@ -77,8 +79,8 @@ export function VideosView({ files }: { files: Record<string, FileEntry[]> }) {
   return (
     <div className="@container">
       <div className="mb-2 flex flex-wrap items-baseline gap-x-3">
-        <h2 className="text-[16px] font-medium">Test videos from NASA</h2>
-        <span className="text-[12.5px] text-dim">Footage recorded during the experiments, streamed from NASA&apos;s repository when you press play. Nothing is stored here.</span>
+        <h2 className="text-[16px] font-medium">{t("Test videos from NASA")}</h2>
+        <span className="text-[12.5px] text-dim">{t("Footage recorded during the experiments, streamed from NASA's repository when you press play. Nothing is stored here.")}</span>
       </div>
       <div className="mb-3 flex flex-wrap gap-1.5">
         {withVideo.map((i) => (
@@ -95,7 +97,7 @@ export function VideosView({ files }: { files: Record<string, FileEntry[]> }) {
               <video ref={videoRef} key={src} src={src} controls autoPlay playsInline className="h-full w-full" onError={() => setState("error")} />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-[13px] text-dim">
-                {state === "loading" ? "Asking NASA PSI for the video…" : state === "error" ? "NASA PSI did not serve this file. Try another, or open the investigation in PSI." : "Pick a video on the right."}
+                {state === "loading" ? t("Asking NASA PSI for the video…") : state === "error" ? t("NASA PSI did not serve this file. Try another, or open the investigation in PSI.") : t("Pick a video on the right.")}
               </div>
             )}
           </div>
@@ -103,25 +105,25 @@ export function VideosView({ files }: { files: Record<string, FileEntry[]> }) {
             <div className="mt-2 text-[12.5px] leading-snug">
               <div className="mono break-all text-[11.5px]">{short(current.n)} · {bytes(current.b)}</div>
               {matched ? (
-                <p className="mt-1 border-l-2 border-accent pl-2"><span className="label mr-1.5">Test record</span>{describeTest(matched)}{matched.notes ? ` · ${matched.notes}` : ""}</p>
+                <p className="mt-1 border-l-2 border-accent pl-2"><span className="label mr-1.5">{t("Test record")}</span>{describeTest(matched)}{matched.notes ? ` · ${matched.notes}` : ""}</p>
               ) : (
-                <p className="mt-1 text-dim">No harmonized test record could be matched to this file name. {inv?.focus}</p>
+                <p className="mt-1 text-dim">{t("No harmonized test record could be matched to this file name.")} {inv?.focus}</p>
               )}
-              {state === "error" && src && <p className="mt-1 text-warn">This browser could not play the file. <a className="underline" href={src} target="_blank" rel="noreferrer">Open it directly</a>.</p>}
+              {state === "error" && src && <p className="mt-1 text-warn">{t("This browser could not play the file.")} <a className="underline" href={src} target="_blank" rel="noreferrer">{t("Open it directly")}</a>.</p>}
             </div>
           )}
         </div>
 
         <div className="min-w-0">
           <div className="mb-1.5 flex items-center gap-2">
-            <input className="field min-w-0 flex-1" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Filter by name, sample or test" aria-label="Filter videos" />
-            <span className="label whitespace-nowrap">{list.length} videos</span>
+            <input className="field min-w-0 flex-1" value={find} onChange={(e) => setFind(e.target.value)} placeholder={t("Filter by name, sample or test")} aria-label={t("Filter videos")} />
+            <span className="label whitespace-nowrap">{t("{n} videos", { n: list.length })}</span>
           </div>
           <div className="scroll max-h-[46vh]">
             <table className="data">
               <tbody>
                 {list.slice(0, 150).map((f) => (
-                  <tr key={f.n} className="cursor-pointer" onClick={() => play(acc, f)} style={current?.n === f.n ? { background: "rgba(127,231,255,0.09)" } : undefined}>
+                  <tr key={f.n} className="cursor-pointer" onClick={() => play(acc, f)} style={current?.n === f.n ? { background: "color-mix(in srgb, var(--accent) 9%, transparent)" } : undefined}>
                     <td className="max-w-0 w-full truncate" title={f.n}>{short(f.n)}</td>
                     <td className="num whitespace-nowrap">{bytes(f.b)}</td>
                   </tr>
@@ -129,7 +131,7 @@ export function VideosView({ files }: { files: Record<string, FileEntry[]> }) {
               </tbody>
             </table>
           </div>
-          {inv && <a className="mono mt-2 inline-block text-[10.5px] text-accent underline underline-offset-2" href={inv.url} target="_blank" rel="noreferrer">All files of {label(inv)} in NASA PSI ↗</a>}
+          {inv && <a className="mono mt-2 inline-block text-[10.5px] text-accent underline underline-offset-2" href={inv.url} target="_blank" rel="noreferrer">{t("All files of {name} in NASA PSI ↗", { name: label(inv) })}</a>}
         </div>
       </div>
     </div>

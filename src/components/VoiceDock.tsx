@@ -11,6 +11,8 @@ import { ENVIRONMENTS } from "@/lib/environments";
 import { COMBUSTION, label, materials } from "@/lib/lab";
 import { signal } from "@/lib/activity";
 import { fullSnapshot } from "@/lib/controls";
+import { t as tNow } from "@/lib/i18n";
+import { useControl, useT } from "@/lib/useControl";
 import type { UiAction } from "@/lib/voiceTools";
 import { onVoiceToggle, voiceStore } from "@/lib/voiceStore";
 import { VoiceOrb, voiceLook } from "./VoiceStage";
@@ -85,7 +87,9 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
   const [activity, setActivity] = useState<"none" | "hearing" | "querying" | "speaking">("none");
   const hearingTimer = useRef<number | undefined>(undefined);
   const replyTimer = useRef<number | undefined>(undefined);
-  const [lang, setLang] = useState<"en" | "es">("en");
+  // The interface language: the same control as the site switch. It also sets the transcriber language.
+  const [lang, setLang] = useControl<"en" | "es">("ui.lang");
+  const t = useT();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const vapiRef = useRef<any>(null);
   const handled = useRef(new Set<string>());
@@ -144,7 +148,7 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
             await new Promise((done) => window.setTimeout(done, 220)); // let each step show
           }
           if (j.used?.length) add("sys", j.used.join(" · "));
-          return say(j.say || "Done.");
+          return say(j.say || t("Done."));
         }
       } catch {
         /* fall through to the local router */
@@ -162,7 +166,7 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
       if (/\b(chart|graph|plot|compare|comparison|dashboard|gr[aá]fica|grafica|compara|comparar)\b/i.test(text) && text.split(/\s+/).length > 2) {
         onAction({ tool: "build_chart", args: { request: text } });
         setActivity("none");
-        return add("lab", "Building that chart on the analytics dashboard.");
+        return add("lab", t("Building that chart on the analytics dashboard."));
       }
 
       // "play the BASS-II video", "video de FLEX": stream footage from NASA.
@@ -170,12 +174,12 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
         if (/sciencecast|youtube|introduc/i.test(text)) {
           onAction({ tool: "watch_nasa_video", args: {} });
           setActivity("none");
-          return add("lab", "NASA's ScienceCasts video is open in the library.");
+          return add("lab", t("NASA's ScienceCasts video is open in the library."));
         }
         const withVideo = COMBUSTION.find((i) => i.acronym && new RegExp(`(^|[^a-z0-9-])${label(i).replace(/[^a-z0-9]+/gi, "[^a-z0-9]*")}([^a-z0-9-]|$)`, "i").test(text));
         onAction({ tool: "play_video", args: { investigation: withVideo?.accession ?? "PSI-25", search: "" } });
         setActivity("none");
-        return add("lab", `Playing footage from ${withVideo ? label(withVideo) : "BASS-II"}, streamed from NASA.`);
+        return add("lab", t("Playing footage from {name}, streamed from NASA.", { name: withVideo ? label(withVideo) : "BASS-II" }));
       }
 
       // History and background: answer from the library of NASA and partner resources.
@@ -191,7 +195,7 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
         onAction({ tool: "open_panel", args: { panel: wanted[1] } });
         if (wanted[1] === "fire" || wanted[1] === "map") return say(await callVoiceTool("check_design", { o2_pct: O, pressure_psi: P }));
         setActivity("none");
-        return add("lab", wanted[2]);
+        return add("lab", t(wanted[2]));
       }
 
       if (/\b(gap|gaps|missing|untested|hueco|huecos|falta)\b/i.test(text)) {
@@ -200,7 +204,7 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
       }
       if (/\b(brief|report|informe|swarm|analyst|analysts|agentes)\b/i.test(text)) {
         onAction({ tool: "write_brief", args: { question: text } });
-        return say("The analysts are writing the brief on screen.");
+        return say(t("The analysts are writing the brief on screen."));
       }
       if (inv && !env && !pct) {
         onAction({ tool: "focus_investigation", args: { id: inv.accession } });
@@ -236,7 +240,7 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
       return say(await callVoiceTool("check_design", { o2_pct: O, pressure_psi: P }));
     } catch {
       setActivity("none");
-      add("sys", "The lab could not answer that. Check the connection and try again.");
+      add("sys", t("The lab could not answer that. Check the connection and try again."));
     }
   }
 
@@ -262,7 +266,7 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
       vapi.on("speech-end", () => setActivity((a) => (a === "speaking" ? "none" : a)));
       vapi.on("volume-level", (v: number) => setLevel(v));
       vapi.on("error", () => {
-        add("sys", "The voice call ended with an error. Typed commands still work.");
+        add("sys", tNow("The voice call ended with an error. Typed commands still work."));
         setCall("idle");
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -326,7 +330,7 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
         messages: [{ role: "system", content: `${cfg.systemPrompt}\n\nThe table currently shows ${design.current.o2}% oxygen at ${design.current.psi} psi.` }],
         tools: [...cfg.uiTools, ...cfg.dataTools].map((t) => ({ type: "function", async: true, function: t })),
       };
-      const firstMessage = lang === "es" ? "Laboratorio listo. ¿Qué entorno quieres revisar?" : "Lab is ready. Which environment do you want to look at?";
+      const firstMessage = lang === "es" ? "Bienvenido al laboratorio. ¿Por dónde quieres empezar: diseño de la nave, materiales, cápsula, estación o laboratorio de fuego?" : "Welcome to the lab. Where would you like to start: spacecraft design, materials, capsule, station, or the fire laboratory?";
       const clientMessages = ["transcript", "tool-calls"];
       if (cfg.assistantId) {
         // The saved assistant (scripts/create_vapi_assistant.mjs) already carries the lab's
@@ -345,7 +349,7 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
         } as any);
       }
     } catch {
-      add("sys", "Could not start the voice call. Check the Vapi key and microphone permission.");
+      add("sys", tNow("Could not start the voice call. Check the Vapi key and microphone permission."));
       setCall("idle");
     }
   }
@@ -376,18 +380,18 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
       className={`btn flex flex-1 items-center justify-center gap-2 !py-2 ${call === "live" ? "on" : ""} ${extra}`}
       onClick={call === "idle" ? startCall : stopCall}
       disabled={!cfg?.publicKey || call === "connecting"}
-      title={cfg?.publicKey ? "Talk to the lab" : "Set NEXT_PUBLIC_VAPI_PUBLIC_KEY to enable live voice"}
+      title={cfg?.publicKey ? t("Talk to the lab") : t("Set NEXT_PUBLIC_VAPI_PUBLIC_KEY to enable live voice")}
     >
       <span className="inline-block h-2 w-2 rounded-full" style={{ background: call === "live" ? "var(--danger)" : "var(--accent)", boxShadow: call === "live" ? "0 0 8px var(--danger)" : undefined }} />
-      {call === "idle" ? "Talk to the lab" : call === "connecting" ? "Connecting…" : "End call"}
+      {call === "idle" ? t("Talk to the lab") : call === "connecting" ? t("Connecting…") : t("End call")}
     </button>
   );
   const conversation = (cls: string) => (
     <div ref={logRef} className={`scroll space-y-1.5 text-[12.5px] leading-snug ${cls}`} aria-live="polite">
-      {lines.length === 0 && <div className="text-[11.5px] leading-snug text-faint">Nothing said yet. Talk, or type below: ask for the fire, the tables, a material, an environment, a chart.</div>}
+      {lines.length === 0 && <div className="text-[11.5px] leading-snug text-faint">{t("Nothing said yet. Talk, or type below: ask for the fire, the tables, a material, an environment, a chart.")}</div>}
       {lines.map((l, i) => (
-        <div key={i} className={l.who === "you" ? "border-l border-accent pl-2 text-accent" : l.who === "sys" ? "pl-2 text-[11.5px] text-faint" : "border-l border-white/40 pl-2"}>
-          <span className="mono mr-1.5 text-[9.5px] uppercase tracking-widest text-faint">{l.who === "you" ? "you" : l.who === "lab" ? "lab" : "data"}</span>
+        <div key={i} className={l.who === "you" ? "border-l border-accent pl-2 text-accent" : l.who === "sys" ? "pl-2 text-[11.5px] text-faint" : "border-l border-mark/40 pl-2"}>
+          <span className="mono mr-1.5 text-[9.5px] uppercase tracking-widest text-faint">{l.who === "you" ? t("you") : l.who === "lab" ? "lab" : t("data")}</span>
           {l.text}
         </div>
       ))}
@@ -401,13 +405,13 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
         command(input);
       }}
     >
-      <input className="field min-w-0 flex-1" value={input} onChange={(e) => setInput(e.target.value)} placeholder={placeholder} aria-label="Message for the lab" />
-      <button className="btn" type="submit">Send</button>
+      <input className="field min-w-0 flex-1" value={input} onChange={(e) => setInput(e.target.value)} placeholder={placeholder} aria-label={t("Message for the lab")} />
+      <button className="btn" type="submit">{t("Send")}</button>
     </form>
   );
   const modeButton = (
-    <button className="mono border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim hover:border-accent hover:text-accent" onClick={onToggleMode} title={floating ? "Dock the voice on the right" : "Shrink the voice to a floating console"}>
-      {floating ? "Maximize" : "Minimize"}
+    <button className="mono border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim hover:border-accent hover:text-accent" onClick={onToggleMode} title={floating ? t("Dock the voice on the right") : t("Shrink the voice to a floating console")}>
+      {floating ? t("Maximize") : t("Minimize")}
     </button>
   );
 
@@ -421,7 +425,7 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: look.css, boxShadow: `0 0 8px ${look.css}` }} />
             {look.label}
           </span>
-          <span className="mono ml-auto border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim">SI-generated voice</span>
+          <span className="mono ml-auto border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim">{t("SI-generated voice")}</span>
           {modeButton}
         </div>
 
@@ -430,34 +434,36 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
         <div className="flex items-center gap-2">
           {talkButton()}
           {!cfg?.assistantId && (
-            <button className="btn !px-2 !py-2" aria-pressed={lang === "es"} onClick={() => setLang(lang === "en" ? "es" : "en")} disabled={call !== "idle"} title="Speech recognition language">{lang.toUpperCase()}</button>
+            <button className="btn !px-2 !py-2" aria-pressed={lang === "es"} onClick={() => setLang(lang === "en" ? "es" : "en")} disabled={call !== "idle"} title={t("Speech recognition language")}>{lang.toUpperCase()}</button>
           )}
-          <button className="btn !px-2 !py-2" aria-pressed={speak} onClick={() => setSpeak(!speak)} title="Read typed answers aloud with the browser voice">Read aloud</button>
+          <button className="btn !px-2 !py-2" aria-pressed={speak} onClick={() => setSpeak(!speak)} title={t("Read typed answers aloud with the browser voice")}>{t("Read aloud")}</button>
         </div>
-        {cfg && !cfg.publicKey && <div className="mt-1.5 text-[11px] leading-snug text-dim">Live voice is off: no Vapi key configured. Typed messages use the same tools.</div>}
+        {cfg && !cfg.publicKey && <div className="mt-1.5 text-[11px] leading-snug text-dim">{t("Live voice is off: no Vapi key configured. Typed messages use the same tools.")}</div>}
 
-        <div className="label mt-3">Conversation</div>
+        <div className="label mt-3">{t("Conversation")}</div>
         {conversation("mt-1 min-h-[70px] flex-[2] basis-0")}
 
         <div className="mt-2 flex flex-wrap gap-1">
-          {CHIPS.slice(0, 6).map((c) => (
-            <button key={c} className="mono border border-line px-1.5 py-0.5 text-[10px] text-dim transition-colors hover:border-accent hover:text-accent" onClick={() => command(c, true)}>{c}</button>
-          ))}
+          {CHIPS.slice(0, 6).map((c) => {
+            // The Spanish chips are worded so the local router understands them as sent.
+            const chip = t(c);
+            return <button key={c} className="mono border border-line px-1.5 py-0.5 text-[10px] text-dim transition-colors hover:border-accent hover:text-accent" onClick={() => command(chip, true)}>{chip}</button>;
+          })}
         </div>
-        {chatBox("Type to the lab")}
+        {chatBox(t("Type to the lab"))}
       </div>
     );
   }
 
   // Floating: the compact console, draggable by its header.
   return (
-    <div className="panel flex flex-col p-3 shadow-[0_10px_40px_rgba(0,0,0,0.5)]" style={{ background: "rgba(6,12,20,0.96)" }}>
-      <div className="-mx-3 -mt-3 flex cursor-grab select-none items-center gap-2 border-b border-line px-3 py-2 active:cursor-grabbing" data-drag-handle title="Drag to move">
+    <div className="panel flex flex-col p-3 shadow-[0_10px_40px_rgba(0,0,0,0.5)]" style={{ background: "var(--surface)" }}>
+      <div className="-mx-3 -mt-3 flex cursor-grab select-none items-center gap-2 border-b border-line px-3 py-2 active:cursor-grabbing" data-drag-handle title={t("Drag to move")}>
         <span className="mono text-[11px] leading-none text-faint" aria-hidden>⋮⋮</span>
-        <span className="label">Voice console</span>
-        <span className="mono ml-auto border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim">SI voice</span>
+        <span className="label">{t("Voice console")}</span>
+        <span className="mono ml-auto border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim">{t("SI voice")}</span>
         <button className="mono border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim hover:border-accent hover:text-accent" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
-          {expanded ? "Hide log" : "Show log"}
+          {expanded ? t("Hide log") : t("Show log")}
         </button>
         {modeButton}
       </div>
@@ -466,18 +472,18 @@ export function VoiceDock({ o2, psi, onAction, floating, onToggleMode }: { o2: n
 
       <div className="mt-2 flex items-center gap-2">
         {talkButton()}
-        <button className="btn !px-2 !py-2" aria-pressed={speak} onClick={() => setSpeak(!speak)} title="Read typed answers aloud with the browser voice">Read aloud</button>
+        <button className="btn !px-2 !py-2" aria-pressed={speak} onClick={() => setSpeak(!speak)} title={t("Read typed answers aloud with the browser voice")}>{t("Read aloud")}</button>
       </div>
 
       {expanded ? (
         conversation("mt-2 max-h-[26vh] min-h-[90px]")
       ) : (
         // Fixed height so the controls below do not jump when a reply arrives.
-        <div className="mt-2 h-[50px] overflow-hidden border-l border-white/40 pl-2 text-[12.5px] leading-snug" aria-live="polite" title={lastLab}>
-          {lastLab ? <span className="line-clamp-3">{lastLab}</span> : <span className="text-faint">Ask for the fire, the tables, a material or an environment.</span>}
+        <div className="mt-2 h-[50px] overflow-hidden border-l border-mark/40 pl-2 text-[12.5px] leading-snug" aria-live="polite" title={lastLab}>
+          {lastLab ? <span className="line-clamp-3">{lastLab}</span> : <span className="text-faint">{t("Ask for the fire, the tables, a material or an environment.")}</span>}
         </div>
       )}
-      {chatBox("Type to the lab")}
+      {chatBox(t("Type to the lab"))}
     </div>
   );
 }

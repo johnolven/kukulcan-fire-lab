@@ -4,6 +4,8 @@
 // is your case. Code generated with SI assistance (Claude Code).
 
 import { useEffect, useRef } from "react";
+import { isLight } from "@/lib/theme";
+import { useControl, useT } from "@/lib/useControl";
 import type * as THREE_NS from "three";
 
 export interface SurfaceSpec {
@@ -27,10 +29,12 @@ export function Surface3D({ spec, className }: { spec: SurfaceSpec; className?: 
   const specRef = useRef(spec);
   const rebuild = useRef<(() => void) | null>(null);
 
+  const t = useT();
+  const [theme] = useControl<string>("ui.theme");
   useEffect(() => {
     specRef.current = spec;
     rebuild.current?.();
-  }, [spec]);
+  }, [spec, theme]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -107,7 +111,7 @@ export function Surface3D({ spec, className }: { spec: SurfaceSpec; className?: 
         frame.push(-1.1, 0, -0.9, -1.1, 1.3, -0.9);
         const fg = new THREE.BufferGeometry();
         fg.setAttribute("position", new THREE.Float32BufferAttribute(frame, 3));
-        const fm = new THREE.LineBasicMaterial({ color: 0xbee1ff, transparent: true, opacity: 0.45 });
+        const fm = new THREE.LineBasicMaterial({ color: isLight() ? 0x0f2841 : 0xbee1ff, transparent: true, opacity: 0.45 });
         g.add(new THREE.LineSegments(fg, fm));
         trash.push(fg, fm);
 
@@ -118,10 +122,10 @@ export function Surface3D({ spec, className }: { spec: SurfaceSpec; className?: 
         const mz = v == null ? 0 : pz(v);
         const dg = new THREE.BufferGeometry();
         dg.setAttribute("position", new THREE.Float32BufferAttribute([mx, 0, my, mx, mz, my], 3));
-        const dm = new THREE.LineBasicMaterial({ color: 0xffffff });
+        const dm = new THREE.LineBasicMaterial({ color: isLight() ? 0x0d1b28 : 0xffffff });
         g.add(new THREE.LineSegments(dg, dm));
         const sg = new THREE.SphereGeometry(0.045, 12, 8);
-        const sm = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const sm = new THREE.MeshBasicMaterial({ color: isLight() ? 0x0d1b28 : 0xffffff });
         const dot = new THREE.Mesh(sg, sm);
         dot.position.set(mx, mz, my);
         g.add(dot);
@@ -199,13 +203,13 @@ export function Surface3D({ spec, className }: { spec: SurfaceSpec; className?: 
 
   return (
     <div className={className}>
-      <div ref={hostRef} className="relative aspect-[16/10] w-full border border-line" role="img" aria-label={`3D surface: ${spec.zLabel} against ${spec.xLabel} and ${spec.yLabel}. Drag to turn.`} />
+      <div ref={hostRef} className="relative aspect-[16/10] w-full border border-line" role="img" aria-label={t("3D surface: {z} against {x} and {y}. Drag to turn.", { z: spec.zLabel, x: spec.xLabel, y: spec.yLabel })} />
       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-[10.5px] text-dim">
-        <span><span className="mono text-faint">HEIGHT</span> {spec.zLabel}, {spec.z[0]} to {spec.z[1]}</span>
-        <span><span className="mono text-faint">FLOOR</span> {spec.xLabel}{spec.xLog ? " (log)" : ""} × {spec.yLabel}</span>
-        <span><span className="mono text-faint">WHITE DOT</span> your case</span>
-        <span><span className="mono text-faint">COLOR</span> blue low, orange high</span>
-        <span className="text-faint">Drag to turn</span>
+        <span><span className="mono text-faint">{t("HEIGHT")}</span> {t("{label}, {lo} to {hi}", { label: spec.zLabel, lo: spec.z[0], hi: spec.z[1] })}</span>
+        <span><span className="mono text-faint">{t("FLOOR")}</span> {spec.xLabel}{spec.xLog ? " (log)" : ""} × {spec.yLabel}</span>
+        <span><span className="mono text-faint">{t("DOT")}</span> {t("your case")}</span>
+        <span><span className="mono text-faint">{t("COLOR")}</span> {t("blue low, orange high")}</span>
+        <span className="text-faint">{t("Drag to turn")}</span>
       </div>
     </div>
   );

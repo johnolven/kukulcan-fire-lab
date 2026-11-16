@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { signal, type LinkId } from "@/lib/activity";
 import type { OrchestratedAnswer } from "@/lib/orchestrator";
 import { LIBRARY, libraryStats, searchLibrary, type Resource } from "@/lib/resources";
+import { useT } from "@/lib/useControl";
 
 const ASK_EVENT = "firelab:ask";
 /** Send a question to the orchestrator from anywhere (timeline, voice). */
@@ -39,7 +40,7 @@ function Cited({ text }: { text: string }) {
         const m = p.match(/^\[([a-z0-9-]+)#(\d+)\]$/);
         const r = m && LIBRARY.find((x) => x.id === m[1]);
         return r ? (
-          <a key={i} className="mono text-[11px] text-accent underline decoration-white/25 underline-offset-2" href={r.url} target="_blank" rel="noreferrer" title={r.passages[+m![2] - 1]?.text.slice(0, 400)}>{p}</a>
+          <a key={i} className="mono text-[11px] text-accent underline decoration-mark/25 underline-offset-2" href={r.url} target="_blank" rel="noreferrer" title={r.passages[+m![2] - 1]?.text.slice(0, 400)}>{p}</a>
         ) : (
           <span key={i}>{p}</span>
         );
@@ -50,18 +51,19 @@ function Cited({ text }: { text: string }) {
 
 function ResourceCard({ r, open, onToggle, watching, onWatch }: { r: Resource; open: boolean; onToggle: () => void; watching: boolean; onWatch: () => void }) {
   const video = YOUTUBE[r.id];
+  const t = useT();
   return (
     <article className={`border border-line p-3 ${watching ? "col-span-full" : ""}`} id={`resource-${r.id}`}>
       <div className="flex items-start gap-2">
         <div className="min-w-0">
-          <div className="label">{r.agency} · {r.kind}{r.passages.length ? ` · ${r.passages.length} passages` : " · link"}</div>
+          <div className="label">{r.agency} · {t(r.kind)}{r.passages.length ? ` · ${t("{n} passages", { n: r.passages.length })}` : ` · ${t("link")}`}</div>
           <h3 className="text-[13.5px] font-medium leading-snug">{r.title}</h3>
         </div>
-        <a className="btn ml-auto shrink-0 !px-1.5 !py-0.5 !text-[9.5px]" href={r.url} target="_blank" rel="noreferrer">Open ↗</a>
+        <a className="btn ml-auto shrink-0 !px-1.5 !py-0.5 !text-[9.5px]" href={r.url} target="_blank" rel="noreferrer">{t("Open ↗")}</a>
       </div>
       <p className="mt-1 text-[12px] leading-snug text-dim">{r.summary}</p>
       {video && (
-        <button className="mono mt-1.5 text-[10.5px] text-accent underline underline-offset-2" onClick={onWatch}>{watching ? "Close the video" : "Watch here"}</button>
+        <button className="mono mt-1.5 text-[10.5px] text-accent underline underline-offset-2" onClick={onWatch}>{watching ? t("Close the video") : t("Watch here")}</button>
       )}
       {video && watching && (
         <div className="mx-auto mt-2 aspect-video w-full max-w-[860px] border border-line bg-black">
@@ -76,12 +78,12 @@ function ResourceCard({ r, open, onToggle, watching, onWatch }: { r: Resource; o
         </div>
       )}
       {r.passages.length > 0 && (
-        <button className="mono mt-1.5 text-[10.5px] text-accent underline underline-offset-2" onClick={onToggle}>{open ? "Hide passages" : "Read passages"}</button>
+        <button className="mono mt-1.5 text-[10.5px] text-accent underline underline-offset-2" onClick={onToggle}>{open ? t("Hide passages") : t("Read passages")}</button>
       )}
       {open && (
         <div className="scroll mt-2 max-h-[240px] space-y-2 border-t border-line pt-2 text-[12px] leading-relaxed">
           {r.passages.map((p) => (
-            <p key={p.id}><span className="mono mr-1.5 text-[10px] text-faint">{p.id}{p.section ? ` · ${p.section}` : ""}{p.page ? ` · p.${p.page}` : ""}</span>{p.text}</p>
+            <p key={p.id}><span className="mono mr-1.5 text-[10px] text-faint">{p.id}{p.section ? ` · ${p.section}` : ""}{p.page ? ` · ${t("p.{n}", { n: p.page })}` : ""}</span>{p.text}</p>
           ))}
         </div>
       )}
@@ -97,6 +99,7 @@ export function LibraryView({ o2, psi }: { o2: number; psi: number }) {
   const [find, setFind] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [watching, setWatching] = useState(false);
+  const t = useT();
   const stats = useMemo(() => libraryStats(), []);
   const hits = useMemo(() => (find.trim().length > 2 ? searchLibrary(find, { limit: 8 }) : []), [find]);
 
@@ -115,7 +118,7 @@ export function LibraryView({ o2, psi }: { o2: number; psi: number }) {
       if (j.trace.some((s) => s.server === "records")) links.add("research-core");
       signal(...links);
     } catch {
-      setError("The orchestrator could not answer. Try again in a moment.");
+      setError(t("The orchestrator could not answer. Try again in a moment."));
     } finally {
       setBusy(false);
     }
@@ -149,28 +152,30 @@ export function LibraryView({ o2, psi }: { o2: number; psi: number }) {
   return (
     <div className="@container">
       <div className="mb-1 flex flex-wrap items-baseline gap-x-3">
-        <h2 className="text-[16px] font-medium">Ask across every source</h2>
-        <span className="text-[12.5px] text-dim">The orchestrator chooses which servers to consult, test records, fire models, the simulator, and the NASA and partner library, and cites what it used.</span>
+        <h2 className="text-[16px] font-medium">{t("Ask across every source")}</h2>
+        <span className="text-[12.5px] text-dim">{t("The orchestrator chooses which servers to consult, test records, fire models, the simulator, and the NASA and partner library, and cites what it used.")}</span>
       </div>
       <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); ask(q); }}>
-        <input className="field min-w-[260px] flex-1" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Ask about this cabin (${o2}% oxygen, ${psi} psi), an incident, a material, a technology`} aria-label="Question for the orchestrator" />
-        <button className="btn" type="submit" disabled={busy || !q.trim()}>{busy ? "Consulting the servers…" : "Ask the lab"}</button>
+        <input className="field min-w-[260px] flex-1" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Ask about this cabin ({o2}% oxygen, {psi} psi), an incident, a material, a technology", { o2, psi })} aria-label={t("Question for the orchestrator")} />
+        <button className="btn" type="submit" disabled={busy || !q.trim()}>{busy ? t("Consulting the servers…") : t("Ask the lab")}</button>
       </form>
       <div className="mt-2 flex flex-wrap gap-1">
-        {EXAMPLES.map((e) => (
-          <button key={e} className="mono border border-line px-1.5 py-0.5 text-left text-[10px] text-dim transition-colors hover:border-accent hover:text-accent" onClick={() => { setQ(e); ask(e); }} disabled={busy}>{e.length > 62 ? `${e.slice(0, 60)}…` : e}</button>
-        ))}
+        {EXAMPLES.map((key) => {
+          // The orchestrator answers in the language of the question, so the example is sent as shown.
+          const e = t(key);
+          return <button key={key} className="mono border border-line px-1.5 py-0.5 text-left text-[10px] text-dim transition-colors hover:border-accent hover:text-accent" onClick={() => { setQ(e); ask(e); }} disabled={busy}>{e.length > 62 ? `${e.slice(0, 60)}…` : e}</button>;
+        })}
       </div>
       {error && <p className="mt-2 text-[12.5px] text-warn">{error}</p>}
 
       {answer && (
         <div className="mt-3 border-l-2 border-accent pl-3">
-          <div className="label text-accent">Answer</div>
+          <div className="label text-accent">{t("Answer")}</div>
           <div className="space-y-2 text-[13.5px] leading-relaxed">
             {answer.answer.split(/\n\s*\n/).map((para, i) => <p key={i}><Cited text={para} /></p>)}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <span className="label">Servers consulted</span>
+            <span className="label">{t("Servers consulted")}</span>
             {answer.trace.map((s, i) => (
               <span key={i} className="mono border px-1.5 py-0.5 text-[10px]" style={{ borderColor: s.ok ? "var(--line-strong)" : "var(--danger)", color: s.server === "records" ? "var(--accent)" : "var(--warn)" }} title={JSON.stringify(s.input)}>
                 {s.server} · {s.tool} · {s.ms} ms
@@ -178,16 +183,16 @@ export function LibraryView({ o2, psi }: { o2: number; psi: number }) {
             ))}
           </div>
           <p className="mt-1.5 text-[11px] text-dim">
-            <span className="mono mr-2 border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest">{answer.mode === "language-model" ? "SI-generated text" : "No SI text"}</span>
+            <span className="mono mr-2 border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest">{answer.mode === "language-model" ? t("SI-generated text") : t("No SI text")}</span>
             {answer.disclosure}
           </p>
         </div>
       )}
 
       <div className="mt-5 flex flex-wrap items-baseline gap-x-3 border-t border-line pt-3">
-        <h2 className="text-[16px] font-medium">Resource library</h2>
-        <span className="text-[12.5px] text-dim">{stats.on_challenge_tab} resources from the challenge&apos;s list and {stats.partner_agency} from partner agencies, {stats.passages} citable passages.</span>
-        <input className="field ml-auto w-56" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Search the passages" aria-label="Search the library" />
+        <h2 className="text-[16px] font-medium">{t("Resource library")}</h2>
+        <span className="text-[12.5px] text-dim">{t("{listed} resources from the challenge's list and {partner} from partner agencies, {passages} citable passages.", { listed: stats.on_challenge_tab, partner: stats.partner_agency, passages: stats.passages })}</span>
+        <input className="field ml-auto w-56" value={find} onChange={(e) => setFind(e.target.value)} placeholder={t("Search the passages")} aria-label={t("Search the library")} />
       </div>
 
       {hits.length > 0 && (
@@ -200,7 +205,7 @@ export function LibraryView({ o2, psi }: { o2: number; psi: number }) {
 
       {[true, false].map((listed) => (
         <div key={String(listed)} className="mt-3">
-          <div className="label mb-1.5">{listed ? "On the challenge's Resources tab (NASA)" : "Partner agencies and international teams (not on the challenge's list)"}</div>
+          <div className="label mb-1.5">{listed ? t("On the challenge's Resources tab (NASA)") : t("Partner agencies and international teams (not on the challenge's list)")}</div>
           <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 330px), 1fr))" }}>
             {LIBRARY.filter((r) => r.listed === listed).map((r) => <ResourceCard key={r.id} r={r} open={open === r.id} onToggle={() => setOpen(open === r.id ? null : r.id)} watching={watching && r.id === "sciencecast"} onWatch={() => setWatching(!watching)} />)}
           </div>

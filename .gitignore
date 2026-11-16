@@ -44,3 +44,6 @@ next-env.d.ts
 /data/psi/
 /data/context/
 !.env.example
+video/out/
+video/out-*/
+video/shots/

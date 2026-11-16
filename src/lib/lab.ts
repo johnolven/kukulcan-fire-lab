@@ -6,6 +6,8 @@ import testsJson from "@/data/tests.json";
 import investigationsJson from "@/data/investigations.json";
 import type { Investigation, Target, TestRecord } from "./types";
 import { PSI_PER_ATM } from "./types";
+// Screen text goes through the dictionary. On the server the language is always English.
+import { t as tx } from "./i18n";
 
 export const TESTS = testsJson as unknown as TestRecord[];
 export const INVESTIGATIONS = investigationsJson as unknown as Investigation[];
@@ -148,7 +150,7 @@ export function rankInvestigations(target: Target, pillar?: string): RankedInves
       let directness = safety.length ? 22 + Math.min(8, (safety.length - 1) * 4 + (inv.sub_area?.toLowerCase().includes("fire") ? 4 : 0)) : 10;
       if (groundOnly && !inv.n_records) directness = Math.min(directness, 14);
       rationale.push(
-        safety.length ? `Addresses ${safety.join(" + ")} directly.` : "Fundamental combustion science; indirect fire-safety relevance.",
+        safety.length ? tx("Addresses {pillars} directly.", { pillars: safety.map((p) => tx(p)).join(" + ") }) : tx("Fundamental combustion science; indirect fire-safety relevance."),
       );
 
       const near = nearestTests(target, 1, { accession: inv.accession })[0] ?? null;
@@ -157,11 +159,28 @@ export function rankInvestigations(target: Target, pillar?: string): RankedInves
         proximity = Math.round(30 * Math.exp(-near.distance / 1.5));
         const t = near.item;
         const o2 = t.o2_min === t.o2_max ? `${t.o2_min}%` : `${t.o2_min}-${t.o2_max}%`;
+        const where = near.distance < 0.5 ? "inside" : near.distance < 1.5 ? "near" : "far";
         rationale.push(
-          `Closest record: ${o2} O2${t.pressure_atm != null ? ` at ${(t.pressure_atm * PSI_PER_ATM).toFixed(1)} psi` : ", pressure not given"} (${near.distance < 0.5 ? "inside" : near.distance < 1.5 ? "near" : "far from"} the design point).`,
+          t.pressure_atm != null
+            ? tx(
+                where === "inside"
+                  ? "Closest record: {o2} O2 at {psi} psi (inside the design point)."
+                  : where === "near"
+                    ? "Closest record: {o2} O2 at {psi} psi (near the design point)."
+                    : "Closest record: {o2} O2 at {psi} psi (far from the design point).",
+                { o2, psi: (t.pressure_atm * PSI_PER_ATM).toFixed(1) },
+              )
+            : tx(
+                where === "inside"
+                  ? "Closest record: {o2} O2, pressure not given (inside the design point)."
+                  : where === "near"
+                    ? "Closest record: {o2} O2, pressure not given (near the design point)."
+                    : "Closest record: {o2} O2, pressure not given (far from the design point).",
+                { o2 },
+              ),
         );
       } else {
-        rationale.push("No oxygen values in its test table, so it cannot be placed against the design atmosphere.");
+        rationale.push(tx("No oxygen values in its test table, so it cannot be placed against the design atmosphere."));
       }
 
       const g = phaseGroup(inv.fuel_phase);
@@ -169,7 +188,7 @@ export function rankInvestigations(target: Target, pillar?: string): RankedInves
       if (inv.accession === "PSI-20") material = 14; // gas burner built to emulate burning solids
       if (target.phase && phaseGroup(target.phase) !== g) material = Math.round(material * 0.5);
       rationale.push(
-        g === "solid" ? "Burns real solid materials." : g === "smoke" ? "Measures smoke from overheated spacecraft materials." : g === "liquid" ? "Liquid droplets: transferable physics, not cabin materials." : inv.accession === "PSI-20" ? "Gas burner designed to emulate burning solids." : "Gas flames: transferable physics, not cabin materials.",
+        tx(g === "solid" ? "Burns real solid materials." : g === "smoke" ? "Measures smoke from overheated spacecraft materials." : g === "liquid" ? "Liquid droplets: transferable physics, not cabin materials." : inv.accession === "PSI-20" ? "Gas burner designed to emulate burning solids." : "Gas flames: transferable physics, not cabin materials."),
       );
 
       const volume = Math.min(10, Math.round(3.3 * Math.log10(1 + inv.n_records + (inv.n_flames ?? 0))));
@@ -243,30 +262,41 @@ export function gaps(target?: Target): Gap[] {
   const out: Gap[] = [
     {
       severity: "critical",
-      title: "No solid-material test at 30% oxygen or more",
-      detail: `${enriched.length} tests reach 30% oxygen or more, and all are gas flames or liquid droplets. ${enrichedSolid} are solids. The highest oxygen level recorded for a solid sample is ${solidMax}% (${solidO2.length} solid records carry an oxygen value). Material selection for an enriched cabin rests on extrapolation.`,
+      title: tx("No solid-material test at 30% oxygen or more"),
+      detail: tx(
+        "{n} tests reach 30% oxygen or more, and all are gas flames or liquid droplets. {solids} are solids. The highest oxygen level recorded for a solid sample is {max}% ({withO2} solid records carry an oxygen value). Material selection for an enriched cabin rests on extrapolation.",
+        { n: enriched.length, solids: enrichedSolid, max: solidMax, withO2: solidO2.length },
+      ),
     },
     {
       severity: "critical",
-      title: "No partial-gravity data",
-      detail:
+      title: tx("No partial-gravity data"),
+      detail: tx(
         "Every record is microgravity or a ground reference. Lunar (0.17 g) and Martian (0.38 g) behavior can only be bounded between the two. ACME E-FIELD Flames used an electric field to mimic buoyancy, which is the closest proxy in the repository.",
+      ),
     },
     {
       severity: "major",
-      title: "Enriched oxygen at reduced pressure is thinly covered",
-      detail: `${lowP.length} records combine 30% oxygen or more with 10.2 psi or less, the corner where a Moon base is expected to operate. They come from ${[...new Set(lowP.map((t) => t.acronym))].join(", ") || "no investigation"}, all with gaseous fuel.`,
+      title: tx("Enriched oxygen at reduced pressure is thinly covered"),
+      detail: tx(
+        "{n} records combine 30% oxygen or more with 10.2 psi or less, the corner where a Moon base is expected to operate. They come from {names}, all with gaseous fuel.",
+        { n: lowP.length, names: [...new Set(lowP.map((t) => t.acronym))].join(", ") || tx("no investigation") },
+      ),
     },
     {
       severity: "major",
-      title: "Air flow is missing from most records",
-      detail: `Only ${TESTS.filter((t) => t.flow_cm_s != null).length} of ${TESTS.length} records give a flow speed in cm/s. BASS and BASS-II log a fan setting rather than a calibrated speed, so ventilation effects on solids need the raw data to quantify.`,
+      title: tx("Air flow is missing from most records"),
+      detail: tx(
+        "Only {n} of {total} records give a flow speed in cm/s. BASS and BASS-II log a fan setting rather than a calibrated speed, so ventilation effects on solids need the raw data to quantify.",
+        { n: TESTS.filter((t) => t.flow_cm_s != null).length, total: TESTS.length },
+      ),
     },
     {
       severity: "note",
-      title: "Smoke data has no oxygen dimension",
-      detail:
+      title: tx("Smoke data has no oxygen dimension"),
+      detail: tx(
         "SAME and SAME-R characterize smoke from five overheated materials by flow and aging time. None of those records vary oxygen, so detector tuning for an enriched cabin is untested.",
+      ),
     },
   ];
   if (target) {
@@ -275,15 +305,29 @@ export function gaps(target?: Target): Gap[] {
     if (near && near.distance > 1) {
       out.unshift({
         severity: "critical",
-        title: "The design point itself is outside the tested envelope",
-        detail: `The closest record of any kind is ${near.item.acronym} ${near.item.test_id} at ${near.item.o2_min}-${near.item.o2_max}% oxygen${near.item.pressure_atm != null ? ` and ${(near.item.pressure_atm * PSI_PER_ATM).toFixed(1)} psi` : ""}.`,
+        title: tx("The design point itself is outside the tested envelope"),
+        detail:
+          near.item.pressure_atm != null
+            ? tx("The closest record of any kind is {name} at {o2}% oxygen and {psi} psi.", {
+                name: `${near.item.acronym} ${near.item.test_id}`,
+                o2: `${near.item.o2_min}-${near.item.o2_max}`,
+                psi: (near.item.pressure_atm * PSI_PER_ATM).toFixed(1),
+              })
+            : tx("The closest record of any kind is {name} at {o2}% oxygen.", {
+                name: `${near.item.acronym} ${near.item.test_id}`,
+                o2: `${near.item.o2_min}-${near.item.o2_max}`,
+              }),
       });
     }
     if (nearSolid && target.o2_pct - (nearSolid.item.o2_max ?? 0) > 3) {
       out.unshift({
         severity: "critical",
-        title: `Solids were tested ${(target.o2_pct - (nearSolid.item.o2_max ?? 0)).toFixed(1)} oxygen points below this design`,
-        detail: `Closest solid record: ${nearSolid.item.acronym} ${nearSolid.item.test_id}, ${nearSolid.item.material ?? nearSolid.item.fuel} at ${nearSolid.item.o2_max}% oxygen. Flammability depends strongly on oxygen, so this cannot be read across.`,
+        title: tx("Solids were tested {d} oxygen points below this design", { d: (target.o2_pct - (nearSolid.item.o2_max ?? 0)).toFixed(1) }),
+        detail: tx("Closest solid record: {name}, {material} at {o2}% oxygen. Flammability depends strongly on oxygen, so this cannot be read across.", {
+          name: `${nearSolid.item.acronym} ${nearSolid.item.test_id}`,
+          material: String(nearSolid.item.material ?? nearSolid.item.fuel),
+          o2: String(nearSolid.item.o2_max),
+        }),
       });
     }
   }
@@ -376,11 +420,11 @@ export function searchInvestigations(query: string, pillar?: string, phase?: str
 }
 
 export function describeTest(t: TestRecord): string {
-  const o2 = t.o2_min == null ? "oxygen not given" : t.o2_min === t.o2_max ? `${t.o2_min}% O2` : `${t.o2_min}-${t.o2_max}% O2`;
-  const p = t.pressure_atm == null ? "pressure not given" : `${(t.pressure_atm * PSI_PER_ATM).toFixed(1)} psi`;
-  const bits = [t.material ?? t.fuel, o2 + (t.o2_where !== "ambient" ? ` (${t.o2_where})` : ""), p];
-  if (t.flow_cm_s != null) bits.push(`${t.flow_cm_s} cm/s flow`);
-  if (t.outcome) bits.push(t.outcome);
-  if (t.burn_time_s != null) bits.push(`${t.burn_time_s} s burn`);
+  const o2 = t.o2_min == null ? tx("oxygen not given") : t.o2_min === t.o2_max ? `${t.o2_min}% O2` : `${t.o2_min}-${t.o2_max}% O2`;
+  const p = t.pressure_atm == null ? tx("pressure not given") : `${(t.pressure_atm * PSI_PER_ATM).toFixed(1)} psi`;
+  const bits = [t.material ?? t.fuel, o2 + (t.o2_where !== "ambient" ? ` (${tx(t.o2_where)})` : ""), p];
+  if (t.flow_cm_s != null) bits.push(tx("{v} cm/s flow", { v: t.flow_cm_s }));
+  if (t.outcome) bits.push(tx(t.outcome));
+  if (t.burn_time_s != null) bits.push(tx("{v} s burn", { v: t.burn_time_s }));
   return `${t.acronym} ${t.test_id}: ${bits.filter(Boolean).join(", ")}`;
 }

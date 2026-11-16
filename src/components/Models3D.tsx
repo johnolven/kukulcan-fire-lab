@@ -5,6 +5,7 @@
 // Code and models generated with SI assistance (Claude Code).
 
 import { useEffect, useRef } from "react";
+import { useControl, useT } from "@/lib/useControl";
 import type * as THREE_NS from "three";
 
 type V3 = [number, number, number];
@@ -200,9 +201,12 @@ const MODELS: Record<string, { parts: Part[]; size: number }> = {
 };
 
 const TONE = { main: [0xe9f4ff, 0.95], accent: [0x7fe7ff, 1], dim: [0xbee1ff, 0.42] } as const;
+const TONE_LIGHT = { main: [0x0d1b28, 0.9], accent: [0x08728c, 1], dim: [0x0f2841, 0.4] } as const;
 
 export function EnvironmentModel({ id, className }: { id: string; className?: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const [theme] = useControl<string>("ui.theme");
+  const t = useT();
 
   useEffect(() => {
     const host = hostRef.current;
@@ -233,7 +237,7 @@ export function EnvironmentModel({ id, className }: { id: string; className?: st
         part.segs.forEach(([a, b], i) => pts.set([...a, ...b], i * 6));
         const geom = new THREE.BufferGeometry();
         geom.setAttribute("position", new THREE.BufferAttribute(pts, 3));
-        const [color, opacity] = TONE[part.tone ?? "main"];
+        const [color, opacity] = (theme === "light" ? TONE_LIGHT : TONE)[part.tone ?? "main"];
         const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
         const obj = new THREE.LineSegments(geom, mat);
         if (part.pos) obj.position.set(...part.pos);
@@ -321,7 +325,7 @@ export function EnvironmentModel({ id, className }: { id: string; className?: st
       disposed = true;
       cleanup();
     };
-  }, [id]);
+  }, [id, theme]);
 
-  return <div ref={hostRef} className={className} role="img" aria-label={`3D line model: ${id}. Drag to turn.`} />;
+  return <div ref={hostRef} className={className} role="img" aria-label={t("3D line model: {id}. Drag to turn.", { id })} />;
 }

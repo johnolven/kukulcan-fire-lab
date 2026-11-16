@@ -3,18 +3,20 @@
 // Code and drawings generated with SI assistance (Claude Code).
 
 import type { ReactNode } from "react";
+import { useT } from "@/lib/useControl";
 
 const S = { fill: "none", stroke: "currentColor", strokeWidth: 1.15, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, pathLength: 1 };
 const THIN = { ...S, strokeWidth: 0.6, opacity: 0.55 };
 const DASH = { ...THIN, strokeDasharray: "0.012 0.012" };
 
 function Note({ x, y, x2, y2, text, anchor = "start" }: { x: number; y: number; x2: number; y2: number; text: string; anchor?: "start" | "end" }) {
+  const t = useT();
   return (
     <g className="note">
       <line x1={x} y1={y} x2={x2} y2={y2} stroke="currentColor" strokeWidth={0.5} opacity={0.5} />
       <circle cx={x} cy={y} r={1.6} fill="currentColor" opacity={0.8} />
       <text x={x2 + (anchor === "start" ? 4 : -4)} y={y2 + 3} textAnchor={anchor} fontSize={7.5} letterSpacing={0.8} fill="currentColor" opacity={0.75} fontFamily="var(--font-geist-mono), monospace">
-        {text}
+        {t(text)}
       </text>
     </g>
   );
@@ -206,8 +208,9 @@ const ART: Record<string, () => ReactNode> = { suit: Suit, capsule: Capsule, spa
 
 export function EnvironmentDrawing({ id, className, notes = true }: { id: string; className?: string; notes?: boolean }) {
   const Art = ART[id] ?? Station;
+  const t = useT();
   return (
-    <svg viewBox={notes ? "-56 0 432 220" : "0 0 320 220"} className={`draw ${notes ? "" : "no-notes"} ${className ?? ""}`} role="img" aria-label={`Line drawing: ${id}`} key={id}>
+    <svg viewBox={notes ? "-56 0 432 220" : "0 0 320 220"} className={`draw ${notes ? "" : "no-notes"} ${className ?? ""}`} role="img" aria-label={t("Line drawing: {id}", { id })} key={id}>
       <Art />
     </svg>
   );

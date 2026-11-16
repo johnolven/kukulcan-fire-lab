@@ -6,6 +6,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onSignal, signal, type LinkId } from "@/lib/activity";
+import type { Vars } from "@/lib/i18n";
+import { useT } from "@/lib/useControl";
 
 interface Node {
   id: string;
@@ -18,6 +20,7 @@ interface Node {
 }
 
 const H = 46;
+// Titles, notes and link labels stay in English here and are translated when drawn.
 const NODES: Node[] = [
   { id: "you", x: 14, y: 120, w: 132, title: "You", sub: "voice · typing · clicks", tone: "you" },
   { id: "clients", x: 14, y: 318, w: 132, title: "Other MCP clients", sub: "Claude Code, agents", tone: "you" },
@@ -79,7 +82,8 @@ interface Check {
   name: string;
   ok: boolean;
   ms: number;
-  detail: string;
+  detail: string; // English text, translated when shown
+  vars?: Vars;
 }
 
 async function timed<T>(fn: () => Promise<T>): Promise<[T | null, number]> {
@@ -101,6 +105,7 @@ export function SystemMap() {
   const [checks, setChecks] = useState<Check[] | null>(null);
   const [running, setRunning] = useState(false);
   const seq = useRef(0);
+  const t = useT();
 
   useEffect(
     () =>
@@ -125,7 +130,7 @@ export function SystemMap() {
     signal("clients-research", "research-core");
     const [tools, t1] = await timed(() => rpc("/api/mcp", "tools/list"));
     const n1 = tools?.result?.tools?.length ?? 0;
-    out.push({ name: "Research MCP", ok: n1 > 0, ms: t1, detail: n1 ? `${n1} tools listed` : "no answer" });
+    out.push({ name: "Research MCP", ok: n1 > 0, ms: t1, detail: n1 ? "{n} tools listed" : "no answer", vars: { n: n1 } });
     setChecks([...out]);
 
     signal("table-voicemcp", "voicemcp-core");
@@ -147,28 +152,28 @@ export function SystemMap() {
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-3">
-        <h2 className="text-[16px] font-medium">How it connects</h2>
-        <span className="text-[12.5px] text-dim">A link lights up when a real request travels it. Talk, type a command or ask the analysts and watch the path.</span>
-        <button className="btn ml-auto" onClick={liveCheck} disabled={running}>{running ? "Checking…" : "Run a live check"}</button>
+        <h2 className="text-[16px] font-medium">{t("How it connects")}</h2>
+        <span className="text-[12.5px] text-dim">{t("A link lights up when a real request travels it. Talk, type a command or ask the analysts and watch the path.")}</span>
+        <button className="btn ml-auto" onClick={liveCheck} disabled={running}>{running ? t("Checking…") : t("Run a live check")}</button>
       </div>
 
       <div className="scroll">
-        <svg viewBox="0 0 1040 500" className="w-full min-w-[820px]" role="img" aria-label="Diagram of how the voice assistant, the lab page, the two MCP servers, the analysts and the NASA PSI repository connect">
+        <svg viewBox="0 0 1040 500" className="w-full min-w-[820px]" role="img" aria-label={t("Diagram of how the voice assistant, the lab page, the two MCP servers, the analysts and the NASA PSI repository connect")}>
           {/* zones */}
           <rect x={196} y={12} width={178} height={228} fill="none" stroke="var(--line)" strokeDasharray="3 5" />
-          <text x={204} y={26} fontSize={8.5} letterSpacing={1.4} fill="var(--ink-faint)" className="mono">CLIENT</text>
+          <text x={204} y={26} fontSize={8.5} letterSpacing={1.4} fill="var(--ink-faint)" className="mono">{t("CLIENT")}</text>
           <rect x={426} y={36} width={414} height={436} fill="none" stroke="var(--line)" strokeDasharray="3 5" />
-          <text x={434} y={50} fontSize={8.5} letterSpacing={1.4} fill="var(--ink-faint)" className="mono">KUKULCAN FIRE LAB SERVER</text>
+          <text x={434} y={50} fontSize={8.5} letterSpacing={1.4} fill="var(--ink-faint)" className="mono">{t("KUKULCAN FIRE LAB SERVER")}</text>
 
           {/* dataset provenance: built offline from NASA's tables */}
           <path id="prov" d={`M${N.psi.x + 75} ${N.psi.y} C${N.psi.x + 75} 180 ${N.core.x + 190} 143 ${N.core.x + N.core.w} ${N.core.y + H / 2}`} fill="none" stroke="var(--warn)" strokeWidth={1} strokeDasharray="5 4" opacity={0.75} />
           <text x={906} y={196} fontSize={8.5} letterSpacing={1} fill="var(--warn)" className="mono">
-            <tspan x={868} dy={0}>BUILT FROM NASA TABLES</tspan>
-            <tspan x={868} dy={11}>(HARMONIZED OFFLINE)</tspan>
+            <tspan x={868} dy={0}>{t("BUILT FROM NASA TABLES")}</tspan>
+            <tspan x={868} dy={11}>{t("(HARMONIZED OFFLINE)")}</tspan>
           </text>
 
           <path d={`M${N.psi.x + 40} ${N.psi.y + H} C${N.psi.x + 40} 440 ${N.resources.x + N.resources.w + 40} 435 ${N.resources.x + N.resources.w} ${N.resources.y + H / 2}`} fill="none" stroke="var(--warn)" strokeWidth={1} strokeDasharray="5 4" opacity={0.75} />
-          <text x={846} y={452} fontSize={8.5} letterSpacing={1} fill="var(--warn)" className="mono">NASA + PARTNER PAGES</text>
+          <text x={846} y={452} fontSize={8.5} letterSpacing={1} fill="var(--warn)" className="mono">{t("NASA + PARTNER PAGES")}</text>
 
           {/* links */}
           {LINKS.map((l) => {
@@ -178,7 +183,7 @@ export function SystemMap() {
                 <path id={`link-${l.id}`} d={l.d} fill="none" stroke={on ? "var(--accent)" : "var(--line-strong)"} strokeWidth={on ? 1.6 : 1} style={{ transition: "stroke 0.4s" }} />
                 {l.label && (
                   <text x={l.lx} y={l.ly} fontSize={8.5} letterSpacing={0.8} fill={on ? "var(--accent)" : "var(--ink-dim)"} className="mono">
-                    {l.label.toUpperCase()}
+                    {t(l.label).toUpperCase()}
                     {counts[l.id] ? ` · ${counts[l.id]}` : ""}
                   </text>
                 )}
@@ -202,10 +207,10 @@ export function SystemMap() {
             const color = n.tone === "nasa" ? "var(--warn)" : active ? "var(--accent)" : "var(--ink)";
             return (
               <g key={n.id}>
-                <rect x={n.x} y={n.y} width={n.w} height={H} fill={active ? "rgba(127,231,255,0.10)" : "rgba(4,7,12,0.92)"} stroke={color} strokeWidth={active ? 1.5 : 1} style={{ transition: "fill 0.4s" }} />
+                <rect x={n.x} y={n.y} width={n.w} height={H} fill={active ? "color-mix(in srgb, var(--accent) 10%, transparent)" : "var(--surface)"} stroke={color} strokeWidth={active ? 1.5 : 1} style={{ transition: "fill 0.4s" }} />
                 <path d={`M${n.x} ${n.y + 8} v-8 h8 M${n.x + n.w} ${n.y + H - 8} v8 h-8`} fill="none" stroke={color} strokeWidth={1.6} />
-                <text x={n.x + 10} y={n.y + 19} fontSize={12} fill={color} fontWeight={500}>{n.title}</text>
-                <text x={n.x + 10} y={n.y + 34} fontSize={8.2} letterSpacing={0.4} fill="var(--ink-dim)" className="mono">{n.sub}</text>
+                <text x={n.x + 10} y={n.y + 19} fontSize={12} fill={color} fontWeight={500}>{t(n.title)}</text>
+                <text x={n.x + 10} y={n.y + 34} fontSize={8.2} letterSpacing={0.4} fill="var(--ink-dim)" className="mono">{t(n.sub)}</text>
               </g>
             );
           })}
@@ -215,14 +220,14 @@ export function SystemMap() {
       <div className="mt-2 grid gap-3 md:grid-cols-3">
         {(checks ?? []).map((c) => (
           <div key={c.name} className="border-l-2 pl-3" style={{ borderColor: c.ok ? "var(--ok)" : "var(--danger)" }}>
-            <div className="label" style={{ color: c.ok ? "var(--ok)" : "var(--danger)" }}>{c.ok ? "reachable" : "failed"} · {c.ms} ms</div>
-            <div className="text-[13px]">{c.name}</div>
-            <div className="text-[12px] text-dim">{c.detail}</div>
+            <div className="label" style={{ color: c.ok ? "var(--ok)" : "var(--danger)" }}>{c.ok ? t("reachable") : t("failed")} · {c.ms} ms</div>
+            <div className="text-[13px]">{t(c.name)}</div>
+            <div className="text-[12px] text-dim">{t(c.detail, c.vars)}</div>
           </div>
         ))}
         {!checks && (
           <p className="text-[12px] leading-relaxed text-dim md:col-span-3">
-            The records the lab reads were harmonized ahead of time from NASA&apos;s experimental tables, so queries are instant and work offline. NASA&apos;s servers are contacted live only to issue a link when you open a document or video, which stays on NASA&apos;s side. Other MCP clients reach the research server directly; their traffic does not pass through this page, so it is not animated here.
+            {t("The records the lab reads were harmonized ahead of time from NASA's experimental tables, so queries are instant and work offline. NASA's servers are contacted live only to issue a link when you open a document or video, which stays on NASA's side. Other MCP clients reach the research server directly; their traffic does not pass through this page, so it is not animated here.")}
           </p>
         )}
       </div>

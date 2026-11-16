@@ -1,0 +1,322 @@
+// Spanish for the "sim" group of files. Key: the English text exactly as written in the code.
+// Code generated with SI assistance (Claude Code).
+
+export const SIM: Record<string, string> = {
+  // ---------- shared ----------
+  Gravity: "Gravedad",
+  Microgravity: "Microgravedad",
+  Moon: "Luna",
+  Mars: "Marte",
+  Earth: "Tierra",
+  "Moon 0.17 g": "Luna 0.17 g",
+  "Mars 0.38 g": "Marte 0.38 g",
+  "Earth 1 g": "Tierra 1 g",
+  Extinguisher: "Extintor",
+  Pause: "Pausar",
+  Resume: "Continuar",
+  "CO breathed": "CO respirado",
+
+  // ---------- fire-model lab (LabView) ----------
+  "Fire-model lab": "Laboratorio de modelos de fuego",
+  "A live cabin and five published fire models, running at {o2}% oxygen and {psi} psi.":
+    "Una cabina en vivo y cinco modelos de fuego publicados, corriendo a {o2}% de oxígeno y {psi} psi.",
+  "Fire models": "Modelos de fuego",
+  "Graph type": "Tipo de gráfica",
+  "Live cabin": "Cabina en vivo",
+  "Flame, smoke and air moving through a crew module": "Llama, humo y aire moviéndose por un módulo tripulado",
+  "Flammability map": "Mapa de inllamabilidad",
+  "Does a thin material burn at this oxygen and airflow?": "¿Arde un material delgado con este oxígeno y este flujo de aire?",
+  "Earth test vs orbit": "Prueba en Tierra vs órbita",
+  "A material can pass on Earth and still burn in orbit": "Un material puede pasar la prueba en la Tierra y aun así arder en órbita",
+  "Test probability": "Probabilidad en la prueba",
+  "How likely is one sample to burn, and how many to test": "Qué tan probable es que una muestra arda, y cuántas probar",
+  "Flame temperature": "Temperatura de llama",
+  "More oxygen, hotter flame": "Más oxígeno, llama más caliente",
+  "Burning droplet": "Gota ardiendo",
+  "The flame that looks out but is not": "La llama que parece apagada pero no lo está",
+  "A piece of material burns where you click. In microgravity there is no rising plume: the flame stays low and blue and the smoke gathers around it until the ventilation carries it to the detector. With gravity the hot gas rises, the flame climbs and pulls in fresh air. Turn the fans off, fire the extinguisher, change the gravity, and watch what reaches the crew member's breathing zone.":
+    "Un trozo de material arde donde hagas clic. En microgravedad no hay columna ascendente: la llama se queda baja y azul, y el humo se acumula a su alrededor hasta que la ventilación lo lleva al detector. Con gravedad el gas caliente sube, la llama trepa y jala aire fresco. Apaga los ventiladores, dispara el extintor, cambia la gravedad y observa qué llega a la zona de respiración del tripulante.",
+  "Where it comes from, and what is assumed": "De dónde sale y qué se supone",
+  "A two-dimensional fluid emulation (stable-fluids method) of a module cross-section, at this cabin's oxygen and pressure. Pyrolysis of the material, radiative heat loss and the 15 cm/s ventilation are calibrated by hand, and the heat release is scaled for a 1.5 m deep slice. It shows how flame and smoke behave; it is not validated against a test, it is not a PSI test record, and it certifies nothing.":
+    "Una emulación de fluidos en dos dimensiones (método stable-fluids) de un corte transversal del módulo, con el oxígeno y la presión de esta cabina. La pirólisis del material, la pérdida de calor por radiación y la ventilación de 15 cm/s están calibradas a mano, y la liberación de calor está escalada para una rebanada de 1.5 m de fondo. Muestra cómo se comportan la llama y el humo; no está validada contra una prueba, no es un registro de prueba de PSI y no certifica nada.",
+  "This is a model, not a PSI test record, and it certifies nothing.": "Esto es un modelo, no un registro de prueba de PSI, y no certifica nada.",
+
+  // flammability map
+  "Airflow at the flame": "Flujo de aire en la llama",
+  "Fuel half-thickness": "Semiespesor del combustible",
+  "Limit at this airflow": "Límite con este flujo de aire",
+  "At this cabin": "En esta cabina",
+  "It burns": "Arde",
+  "It does not burn": "No arde",
+  "Flame spread": "Propagación de la llama",
+  "At {o2}% oxygen the flame spreads against a {u} cm/s airflow. On Earth this paper stops burning below 16.5% oxygen; with a cabin breeze of 5 to 20 cm/s in orbit it keeps burning down to about 14%.":
+    "Con {o2}% de oxígeno la llama avanza contra un flujo de aire de {u} cm/s. En la Tierra este papel deja de arder por debajo de 16.5% de oxígeno; con una brisa de cabina de 5 a 20 cm/s en órbita sigue ardiendo hasta cerca de 14%.",
+  "Too little oxygen for this airflow: the limit here is {lim}%. Very slow flow starves the flame (it radiates its heat away); very fast flow blows it off.":
+    "Muy poco oxígeno para este flujo de aire: aquí el límite es {lim}%. Un flujo muy lento deja a la llama sin oxígeno (pierde su calor por radiación); un flujo muy rápido la apaga de un soplo.",
+  "Airflow at the flame, cm/s (log)": "Flujo de aire en la llama, cm/s (log)",
+  "Oxygen, %": "Oxígeno, %",
+  "Flammability limit against airflow": "Límite de inllamabilidad contra flujo de aire",
+  BURNS: "ARDE",
+  "DOES NOT BURN": "NO ARDE",
+  "Dashed lines mark the buoyant flow a flame makes for itself under Moon, Mars and Earth gravity (assumed to scale with g to the one-third).":
+    "Las líneas punteadas marcan el flujo por flotabilidad que la llama genera por sí misma con la gravedad de la Luna, Marte y la Tierra (se supone que escala con g a la un tercio).",
+  "airflow, cm/s": "flujo de aire, cm/s",
+  "oxygen, %": "oxígeno, %",
+  "flame spread, mm/s": "propagación de la llama, mm/s",
+
+  // Earth test vs orbit
+  "Material limit in the Earth test": "Límite del material en la prueba en Tierra",
+  "How much lower the limit is in orbit": "Cuánto baja el límite en órbita",
+  "Margin on Earth": "Margen en la Tierra",
+  "Margin in orbit": "Margen en órbita",
+  Verdict: "Veredicto",
+  "Margin holds": "El margen se mantiene",
+  "Hidden risk": "Riesgo oculto",
+  "Fails on Earth": "Falla en la Tierra",
+  "The material keeps margin even with the orbit shift.": "El material conserva margen incluso con el corrimiento en órbita.",
+  "It passes the Earth test, but in orbit it could burn: the limit drops below the cabin's oxygen once buoyancy is gone.":
+    "Pasa la prueba en la Tierra, pero en órbita podría arder: el límite cae por debajo del oxígeno de la cabina cuando desaparece la flotabilidad.",
+  "It burns at this oxygen even on Earth.": "Arde con este oxígeno incluso en la Tierra.",
+  "Material oxygen limit on Earth and in orbit against the cabin oxygen": "Límite de oxígeno del material en la Tierra y en órbita contra el oxígeno de la cabina",
+  "Earth test (1 g)": "Prueba en Tierra (1 g)",
+  "In orbit (0 g)": "En órbita (0 g)",
+  "{name} · BURNS ABOVE {limit}%": "{name} · ARDE POR ENCIMA DE {limit}%",
+  "CABIN {o2}%": "CABINA {o2}%",
+  "Green is where the material does not burn, red where it does.": "En verde, donde el material no arde; en rojo, donde sí.",
+
+  // test probability
+  "Material limit (1/e point)": "Límite del material (punto 1/e)",
+  "Scatter between samples": "Dispersión entre muestras",
+  "Samples tested": "Muestras probadas",
+  "One sample burns": "Una muestra arde",
+  "All {n} samples pass": "Pasan las {n} muestras",
+  "50% point · 5% point": "Punto de 50% · punto de 5%",
+  "At {o2}% oxygen one sample has a {p}% chance of burning.": "Con {o2}% de oxígeno una muestra tiene {p}% de probabilidad de arder.",
+  "A pass on 1 sample is not proof: near the limit, burning is a matter of chance, so the number of samples sets how much a pass is worth.":
+    "Que 1 muestra pase no es una prueba concluyente: cerca del límite, arder es cuestión de azar, así que el número de muestras define cuánto vale un resultado aprobatorio.",
+  "A pass on {n} samples is not proof: near the limit, burning is a matter of chance, so the number of samples sets how much a pass is worth.":
+    "Que {n} muestras pasen no es una prueba concluyente: cerca del límite, arder es cuestión de azar, así que el número de muestras define cuánto vale un resultado aprobatorio.",
+  "Test oxygen, %": "Oxígeno de la prueba, %",
+  "Chance one sample burns, %": "Probabilidad de que una muestra arda, %",
+  "Probability that one sample burns against oxygen": "Probabilidad de que una muestra arda contra oxígeno",
+  "cabin {o2}%": "cabina {o2}%",
+  "CABIN {o2}% IS OFF THIS SCALE": "CABINA {o2}% QUEDA FUERA DE ESTA ESCALA",
+  "test oxygen, %": "oxígeno de la prueba, %",
+  "scatter between samples, points": "dispersión entre muestras, puntos",
+  "chance one sample burns, %": "probabilidad de que una muestra arda, %",
+
+  // flame temperature
+  "Oxygen and pressure come from the cabin on the table: {o2}% at {psi} psi ({kpa} kPa). Move them on the left.":
+    "El oxígeno y la presión vienen de la cabina sobre la mesa: {o2}% a {psi} psi ({kpa} kPa). Cámbialos a la izquierda.",
+  "Methane flame": "Llama de metano",
+  "Ethylene flame": "Llama de etileno",
+  "Versus air at sea level": "Frente al aire a nivel del mar",
+  "More oxygen means a hotter flame, more heat on nearby materials and faster spread. Equilibrium carbon monoxide in the flame: {co}% for methane.":
+    "Más oxígeno significa una llama más caliente, más calor sobre los materiales cercanos y una propagación más rápida. Monóxido de carbono de equilibrio en la llama: {co}% para metano.",
+  "This cabin is outside the computed table (15 to 40% oxygen, 30 to 101 kPa), so the nearest edge value is shown.":
+    "Esta cabina queda fuera de la tabla calculada (15 a 40% de oxígeno, 30 a 101 kPa), así que se muestra el valor del borde más cercano.",
+  "Flame temperature, K": "Temperatura de llama, K",
+  "Adiabatic flame temperature against oxygen for methane and ethylene": "Temperatura adiabática de llama contra oxígeno para metano y etileno",
+  ETHYLENE: "ETILENO",
+  METHANE: "METANO",
+  "AIR 21%": "AIRE 21%",
+  "edge of table · {k} K": "borde de la tabla · {k} K",
+  "Blue: methane. Orange: ethylene. Both are stand-ins for the gases a hot material gives off.":
+    "Azul: metano. Naranja: etileno. Ambos representan los gases que desprende un material caliente.",
+  "pressure, kPa": "presión, kPa",
+  "methane flame temperature, K": "temperatura de llama de metano, K",
+
+  // burning droplet
+  "Droplet size (heptane)": "Tamaño de la gota (heptano)",
+  "Burning constant K": "Constante de combustión K",
+  "Total life": "Vida total",
+  "Cool flame": "Llama fría",
+  "Hot flame": "Llama caliente",
+  Evaporating: "Evaporándose",
+  Yes: "Sí",
+  No: "No",
+  "The hot flame dies and a cool flame keeps burning. A cool flame is almost invisible: a leak that looks out may still be reacting.":
+    "La llama caliente se apaga y una llama fría sigue ardiendo. Una llama fría es casi invisible: una fuga que parece apagada puede seguir reaccionando.",
+  "At {o2}% oxygen a {d} mm droplet burns out with a hot flame. Cool flames appear above {dcrit} mm at this oxygen.":
+    "Con {o2}% de oxígeno una gota de {d} mm se consume con llama caliente. Las llamas frías aparecen por encima de {dcrit} mm con este oxígeno.",
+  "Time, s": "Tiempo, s",
+  "Diameter squared, mm²": "Diámetro al cuadrado, mm²",
+  "Droplet diameter squared against time": "Diámetro de la gota al cuadrado contra tiempo",
+  "A straight line on this graph is the d-squared law: the droplet's surface shrinks at a steady rate.":
+    "Una línea recta en esta gráfica es la ley d-cuadrado: la superficie de la gota se reduce a ritmo constante.",
+
+  // sources of each model (src/lib/fireModels.ts SOURCES)
+  "Olson, NASA TM-2004-213114; T'ien et al., NTRS 19930011018; BASS-II. Curve fitted to three NASA points; spread rate from de Ris thin-fuel theory with cellulose-like properties (assumed).":
+    "Olson, NASA TM-2004-213114; T'ien et al., NTRS 19930011018; BASS-II. Curva ajustada a tres puntos de la NASA; velocidad de propagación según la teoría de combustible delgado de de Ris, con propiedades similares a la celulosa (supuestas).",
+  "NASA TM-2008-215260: in 0 g the oxygen limit is up to 4 points lower than in the Earth test. The material limit is an example; use your own test result.":
+    "NASA TM-2008-215260: en 0 g el límite de oxígeno es hasta 4 puntos más bajo que en la prueba en Tierra. El límite del material es un ejemplo; usa el resultado de tu propia prueba.",
+  "Olson and Beeson, ICES-2014-179: NASA-STD-6001 Test 1 treated as a Poisson process. The scatter between samples is assumed.":
+    "Olson and Beeson, ICES-2014-179: la Prueba 1 de NASA-STD-6001 tratada como un proceso de Poisson. La dispersión entre muestras es un supuesto.",
+  "NASA CEA equilibrium calculation at stoichiometric mixture, for methane and ethylene as stand-ins for the gases a hot material releases. Table covers 15-40% oxygen and 30-101 kPa; values outside are clamped.":
+    "Cálculo de equilibrio con NASA CEA para mezcla estequiométrica, con metano y etileno en representación de los gases que libera un material caliente. La tabla cubre 15-40% de oxígeno y 30-101 kPa; los valores fuera de ese rango se limitan al borde.",
+  "d-squared law (Godsave, Spalding) as used for FLEX on the ISS. Burning constant in air 0.75 mm2/s and the cool-flame thresholds are assumed.":
+    "Ley d-cuadrado (Godsave, Spalding) tal como se usó para FLEX en la ISS. La constante de combustión en aire, 0.75 mm2/s, y los umbrales de llama fría son supuestos.",
+
+  // ---------- 3D surface (Surface3D) ----------
+  "3D surface: {z} against {x} and {y}. Drag to turn.": "Superficie 3D: {z} contra {x} y {y}. Arrastra para girar.",
+  HEIGHT: "ALTURA",
+  "{label}, {lo} to {hi}": "{label}, de {lo} a {hi}",
+  FLOOR: "PISO",
+  DOT: "PUNTO",
+  "your case": "tu caso",
+  COLOR: "COLOR",
+  "blue low, orange high": "azul bajo, naranja alto",
+  "Drag to turn": "Arrastra para girar",
+
+  // ---------- live cabin (CabinView) ----------
+  "Cargo bags": "Bolsas de carga",
+  Avionics: "Aviónica",
+  Rack: "Rack",
+  "ventilation 15 cm/s": "ventilación 15 cm/s",
+  "fans off": "ventiladores apagados",
+  "return + detector": "retorno + detector",
+  "breathing zone": "zona de respiración",
+  "click the cabin to move the fire": "haz clic en la cabina para mover el fuego",
+  Time: "Tiempo",
+  Fire: "Fuego",
+  "O₂ breathed": "O₂ respirado",
+  "Air at crew": "Aire junto al tripulante",
+  Cabin: "Cabina",
+  Detected: "Detectado",
+  "not yet": "aún no",
+  "Cross-section of a crew module with a fire, smoke, ventilation, a smoke detector and a crew member":
+    "Corte transversal de un módulo tripulado con un fuego, humo, ventilación, un detector de humo y un tripulante",
+  "Turn fans off": "Apagar ventiladores",
+  "Fans are off": "Ventiladores apagados",
+  Restart: "Reiniciar",
+  Show: "Mostrar",
+  "Flame + smoke": "Llama + humo",
+  Oxygen: "Oxígeno",
+  CO: "CO",
+
+  // ---------- fire scenarios (ScenarioView) ----------
+  "Fire scenarios: what protects the crew": "Escenarios de incendio: qué protege a la tripulación",
+  "A fire starts in a sealed module at {o2}% oxygen and {psi} psi. Pick where, how fast it is detected and what the crew does.":
+    "Empieza un incendio en un módulo sellado a {o2}% de oxígeno y {psi} psi. Elige dónde, qué tan rápido se detecta y qué hace la tripulación.",
+  "Where the fire starts": "Dónde empieza el fuego",
+  "Open cabin": "Cabina abierta",
+  Stowage: "Almacenamiento",
+  "Avionics bay": "Bahía de aviónica",
+  "{kg} kg of fuel that can burn": "{kg} kg de combustible que puede arder",
+  "Time to detect": "Tiempo hasta detectarlo",
+  "What the crew does": "Qué hace la tripulación",
+  "Ventilation off": "Ventilación apagada",
+  "10 s after detection. Slows the fire in microgravity only.": "10 s después de la detección. Frena el fuego solo en microgravedad.",
+  "Masks on": "Máscaras puestas",
+  "20 s after detection. Protects from the gases, not from heat.": "20 s después de la detección. Protege de los gases, no del calor.",
+  "30 s after detection. Works only while the fire is under 50 kW.": "30 s después de la detección. Solo funciona mientras el fuego esté por debajo de 50 kW.",
+  "Flood with nitrogen": "Inundar con nitrógeno",
+  "30 s after detection. Dilutes oxygen to 12%.": "30 s después de la detección. Diluye el oxígeno a 12%.",
+  "Leave the module": "Salir del módulo",
+  "60 s after detection. Saves the crew, not the module.": "60 s después de la detección. Salva a la tripulación, no al módulo.",
+  "Pressure relief valve": "Válvula de alivio de presión",
+  "Vents gas when pressure rises above the starting value.": "Libera gas cuando la presión sube por encima del valor inicial.",
+  "Outcome for the crew": "Resultado para la tripulación",
+  "No limit is exceeded with this response.": "Con esta respuesta no se rebasa ningún límite.",
+  "Flame out at {t} s (extinguisher).": "La llama se apaga a los {t} s (extintor).",
+  "Flame out at {t} s (oxygen fell below 14%).": "La llama se apaga a los {t} s (el oxígeno cayó por debajo de 14%).",
+  "Flame out at {t} s (fuel consumed).": "La llama se apaga a los {t} s (combustible agotado).",
+  "Still burning at 10 minutes.": "Sigue ardiendo a los 10 minutos.",
+  "Peak fire": "Fuego máximo",
+  "Lowest O₂ breathed": "O₂ respirado más bajo",
+  "Hottest air": "Aire más caliente",
+  "Highest pressure": "Presión más alta",
+  "▶ Play the fire": "▶ Reproducir el incendio",
+  "▶ Resume": "▶ Continuar",
+  "Time into the fire, seconds": "Tiempo transcurrido del incendio, segundos",
+  "Ten minutes of fire in fifteen seconds.": "Diez minutos de incendio en quince segundos.",
+  "Fire growing, not yet detected.": "El fuego crece, aún sin detectar.",
+  "Compare responses for this case, best first": "Compara respuestas para este caso, de mejor a peor",
+  Response: "Respuesta",
+  Outcome: "Resultado",
+  "Peak kW": "kW máx.",
+  "Key to reduce the risk": "Clave para reducir el riesgo",
+  "With this response the crew stays within every limit if the fire is detected within":
+    "Con esta respuesta la tripulación se mantiene dentro de todos los límites si el fuego se detecta en menos de",
+  "Detection here is too slow.": "Aquí la detección es demasiado lenta.",
+  "Even detected in 10 s, this response is not enough here. The case needs less fuel, a slower-growing material or a different response.":
+    "Ni detectándolo en 10 s alcanza esta respuesta aquí. El caso necesita menos combustible, un material que crezca más lento o una respuesta distinta.",
+  "Oxygen changes the answer: growth is scaled by (oxygen / 21%)², so the same fire at {o2}% grows {k} times as fast as in air. Move the oxygen control on the left to see it.":
+    "El oxígeno cambia la respuesta: el crecimiento se escala por (oxígeno / 21%)², así que el mismo fuego a {o2}% crece {k} veces más rápido que en aire. Mueve el control de oxígeno a la izquierda para verlo.",
+  "Where the numbers come from, and what is assumed": "De dónde salen los números y qué se supone",
+  "SEALED MODULE · 65 M³ · ILLUSTRATION": "MÓDULO SELLADO · 65 M³ · ILUSTRACIÓN",
+  "CREW OUT": "TRIPULACIÓN FUERA",
+  "Cross-section of the module during the fire": "Corte transversal del módulo durante el incendio",
+
+  // strip charts
+  "Fire size": "Tamaño del fuego",
+  "Oxygen in the cabin": "Oxígeno en la cabina",
+  "Carbon monoxide": "Monóxido de carbono",
+  "Cabin air": "Aire de la cabina",
+  "burn injury 50 kW": "quemaduras 50 kW",
+  "hypoxia 16%": "hipoxia 16%",
+  "1-hour limit 55 ppm": "límite de 1 hora 55 ppm",
+  "{v} {unit} at {t} s": "{v} {unit} a los {t} s",
+  "peak {v} {unit}": "pico {v} {unit}",
+  "{name} over ten minutes": "{name} durante diez minutos",
+
+  // outcome names, reasons, events and response plans (src/lib/scenario.ts)
+  "Crew within every limit": "Tripulación dentro de todos los límites",
+  "Toxic exposure": "Exposición tóxica",
+  "Injury or module lost": "Lesiones o módulo perdido",
+  Catastrophic: "Catastrófico",
+  "Fire passes 200 kW with the crew inside": "El fuego supera 200 kW con la tripulación adentro",
+  "Fire passes 50 kW: burn injuries": "El fuego supera 50 kW: quemaduras",
+  "Oxygen breathed falls below 16%": "El oxígeno respirado cae por debajo de 16%",
+  "Module lost after the crew leaves": "El módulo se pierde después de que sale la tripulación",
+  "Carbon monoxide above the 1-hour limit (55 ppm)": "Monóxido de carbono por encima del límite de 1 hora (55 ppm)",
+  "Carbon dioxide above the 1-hour limit (13,000 ppm)": "Dióxido de carbono por encima del límite de 1 hora (13,000 ppm)",
+  "Extinguisher could not be used: fire too large or crew gone": "No se pudo usar el extintor: fuego demasiado grande o tripulación fuera",
+  "Fire detected": "Fuego detectado",
+  "Crew leaves": "La tripulación sale",
+  "Nitrogen flood": "Inundación con nitrógeno",
+  "Extinguisher puts it out": "El extintor lo apaga",
+  "Extinguisher fails": "El extintor falla",
+  "Flame goes out: oxygen too low": "La llama se apaga: oxígeno demasiado bajo",
+  "Flame goes out: fuel consumed": "La llama se apaga: combustible agotado",
+  "No response": "Sin respuesta",
+  "Ventilation off + extinguisher": "Ventilación apagada + extintor",
+  "Masks + ventilation off + extinguisher": "Máscaras + ventilación apagada + extintor",
+  "Ventilation off + leave the module": "Ventilación apagada + salir del módulo",
+  "Simplified sealed-module fire model: t-squared fire growth (0.0029 kW/s^2) in a 65 m^3 module with 150 m^2 of wall, attributed to NASA Glenn (Dietrich, Ruff and Urban, 2014). Assumptions of this tool: 20 MJ/kg fuel, 13.1 MJ per kg of oxygen, CO yield 2-4% rising to 10% when oxygen runs low, fire growth scaled by (oxygen/21%)^2, flame out below 14% oxygen, ventilation-off slows growth to 30% in microgravity only. It compares decisions; it is not a certification tool and is not derived from the PSI test records.":
+    "Modelo simplificado de incendio en módulo sellado: crecimiento del fuego tipo t-cuadrado (0.0029 kW/s^2) en un módulo de 65 m^3 con 150 m^2 de pared, atribuido a NASA Glenn (Dietrich, Ruff and Urban, 2014). Supuestos de esta herramienta: combustible de 20 MJ/kg, 13.1 MJ por kg de oxígeno, rendimiento de CO de 2-4% que sube a 10% cuando el oxígeno escasea, crecimiento del fuego escalado por (oxígeno/21%)^2, llama apagada por debajo de 14% de oxígeno, apagar la ventilación frena el crecimiento al 30% solo en microgravedad. Compara decisiones; no es una herramienta de certificación y no se deriva de los registros de prueba de PSI.",
+
+  // ---------- analytics (AnalyticsView) ----------
+  "Analytics, built as you ask": "Analítica, armada según lo que pidas",
+  "Describe a chart or table. The language model picks the fields; every number is computed from the harmonized NASA records.":
+    "Describe una gráfica o tabla. El modelo de lenguaje elige los campos; cada número se calcula a partir de los registros armonizados de la NASA.",
+  "e.g. burn time against oxygen for heptane droplets, colored by diluent": "p. ej. tiempo de combustión contra oxígeno para gotas de heptano, coloreado por diluyente",
+  "Describe the chart you want": "Describe la gráfica que quieres",
+  "Building…": "Armando…",
+  "Build chart": "Armar gráfica",
+  "Clear dashboard": "Vaciar tablero",
+  "That chart could not be built. Try rephrasing, or start from one of the presets.":
+    "No se pudo armar esa gráfica. Prueba a decirlo de otra forma, o empieza con una de las predefinidas.",
+  "The dashboard is empty. Ask for a chart above, pick a preset, or say it to the lab: “chart the extinction rate by diluent gas”. Each chart is added here and stays until you remove it. The same builder is available to MCP clients as the tools":
+    "El tablero está vacío. Pide una gráfica arriba, elige una predefinida o díselo al laboratorio: “grafica la tasa de extinción por gas diluyente”. Cada gráfica se agrega aquí y se queda hasta que la quites. El mismo constructor está disponible para clientes MCP como las herramientas",
+  and: "y",
+  Table: "Tabla",
+  Remove: "Quitar",
+  "Remove this chart": "Quitar esta gráfica",
+  Record: "Registro",
+  Records: "Registros",
+  "{n} records": "{n} registros",
+  "No record matches.": "Ningún registro coincide.",
+  "{used} of {matched} matching records had the fields needed": "{used} de {matched} registros coincidentes tenían los campos necesarios",
+  "Spec by SI · numbers by code": "Especificación por SI · números por código",
+  "Closest preset": "Predefinida más cercana",
+  Preset: "Predefinida",
+  "Asked:": "Se pidió:",
+  // preset chips: the short form of each preset title in src/lib/analytics.ts
+  "Does diluting the air put the flame out": "¿Diluir el aire apaga la llama?",
+  "Where the evidence is": "Dónde está la evidencia",
+  "Burn time against oxygen, liquid droplets": "Tiempo de combustión contra oxígeno, gotas líquidas",
+  "Records per investigation": "Registros por investigación",
+  Materials: "Materiales",
+  "Gas flames": "Llamas de gas",
+};

@@ -5,6 +5,7 @@
 
 import { useMemo, useState } from "react";
 import { describeTest, o2Of, phaseGroup, type PhaseGroup } from "@/lib/lab";
+import { useT } from "@/lib/useControl";
 import type { TestRecord } from "@/lib/types";
 import { PSI_PER_ATM } from "@/lib/types";
 
@@ -32,6 +33,7 @@ export function EvidenceMap({
   nearestIds: Set<string>;
   onPick: (o2: number, psi: number) => void;
 }) {
+  const tr = useT();
   const [hover, setHover] = useState<TestRecord | null>(null);
 
   const points = useMemo(
@@ -59,7 +61,7 @@ export function EvidenceMap({
 
   return (
     <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full cursor-crosshair select-none" onClick={click} role="img" aria-label="Test records by oxygen concentration and pressure">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full cursor-crosshair select-none" onClick={click} role="img" aria-label={tr("Test records by oxygen concentration and pressure")}>
         {/* grid */}
         {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((v) => (
           <g key={`x${v}`}>
@@ -73,15 +75,15 @@ export function EvidenceMap({
             <text x={M.l - 6} y={y(v) + 3} textAnchor="end" fontSize={9} fill="var(--ink-dim)" className="mono">{v}</text>
           </g>
         ))}
-        <text x={(W + M.l) / 2} y={H - 6} textAnchor="middle" fontSize={9} letterSpacing={1.5} fill="var(--ink-dim)" className="mono">OXYGEN, % BY VOLUME</text>
-        <text transform={`translate(12 ${(H - M.b + M.t) / 2}) rotate(-90)`} textAnchor="middle" fontSize={9} letterSpacing={1.5} fill="var(--ink-dim)" className="mono">PRESSURE, PSI</text>
+        <text x={(W + M.l) / 2} y={H - 6} textAnchor="middle" fontSize={9} letterSpacing={1.5} fill="var(--ink-dim)" className="mono">{tr("OXYGEN, % BY VOLUME")}</text>
+        <text transform={`translate(12 ${(H - M.b + M.t) / 2}) rotate(-90)`} textAnchor="middle" fontSize={9} letterSpacing={1.5} fill="var(--ink-dim)" className="mono">{tr("PRESSURE, PSI")}</text>
 
         {/* enriched, reduced-pressure corner from the challenge statement */}
         <rect x={x(30)} y={y(10.2)} width={x(100) - x(30)} height={y(0) - y(10.2)} fill="rgba(255,181,74,0.06)" stroke="var(--warn)" strokeWidth={0.8} strokeDasharray="5 4" />
-        <text x={x(100) - 6} y={y(0) - 6} textAnchor="end" fontSize={9} letterSpacing={1} fill="var(--warn)" className="mono">MOON BASE / ROVER CORNER: 30%+ O2, 10.2 PSI OR LESS</text>
+        <text x={x(100) - 6} y={y(0) - 6} textAnchor="end" fontSize={9} letterSpacing={1} fill="var(--warn)" className="mono">{tr("MOON BASE / ROVER CORNER: 30%+ O2, 10.2 PSI OR LESS")}</text>
         {/* sea-level air reference */}
         <line x1={x(21)} y1={M.t} x2={x(21)} y2={H - M.b} stroke="var(--line-strong)" strokeWidth={0.6} strokeDasharray="2 4" />
-        <text x={x(21) + 4} y={M.t + 10} fontSize={8} fill="var(--ink-faint)" className="mono">AIR 21%</text>
+        <text x={x(21) + 4} y={M.t + 10} fontSize={8} fill="var(--ink-faint)" className="mono">{tr("AIR 21%")}</text>
 
         {/* records */}
         {points.map(({ t, cx, cy, g }) => {
@@ -94,7 +96,7 @@ export function EvidenceMap({
               r={near ? 4.2 : t.granularity === "test" ? 2.3 : 3.4}
               fill={near ? COLOR[g] : t.granularity === "test" ? COLOR[g] : "none"}
               fillOpacity={near ? 1 : 0.55}
-              stroke={near ? "#fff" : COLOR[g]}
+              stroke={near ? "var(--mark)" : COLOR[g]}
               strokeWidth={near ? 1 : 0.7}
               onMouseEnter={() => setHover(t)}
               onMouseLeave={() => setHover(null)}
@@ -104,13 +106,13 @@ export function EvidenceMap({
 
         {/* design point */}
         <g pointerEvents="none">
-          <line x1={x(o2)} y1={M.t} x2={x(o2)} y2={H - M.b} stroke="#fff" strokeWidth={0.6} opacity={0.5} />
-          <line x1={M.l} y1={y(psi)} x2={W - M.r} y2={y(psi)} stroke="#fff" strokeWidth={0.6} opacity={0.5} />
-          <circle cx={x(o2)} cy={y(psi)} r={6} fill="none" stroke="#fff" strokeWidth={1} className="pulse" />
-          <circle cx={x(o2)} cy={y(psi)} r={6} fill="none" stroke="#fff" strokeWidth={1.4} />
-          <circle cx={x(o2)} cy={y(psi)} r={1.6} fill="#fff" />
-          <text x={x(o2) + (o2 > 80 ? -10 : 10)} y={y(psi) - 9} textAnchor={o2 > 80 ? "end" : "start"} fontSize={10} fill="#fff" className="mono">
-            DESIGN {o2}% · {psi} PSI
+          <line x1={x(o2)} y1={M.t} x2={x(o2)} y2={H - M.b} stroke="var(--mark)" strokeWidth={0.6} opacity={0.5} />
+          <line x1={M.l} y1={y(psi)} x2={W - M.r} y2={y(psi)} stroke="var(--mark)" strokeWidth={0.6} opacity={0.5} />
+          <circle cx={x(o2)} cy={y(psi)} r={6} fill="none" stroke="var(--mark)" strokeWidth={1} className="pulse" />
+          <circle cx={x(o2)} cy={y(psi)} r={6} fill="none" stroke="var(--mark)" strokeWidth={1.4} />
+          <circle cx={x(o2)} cy={y(psi)} r={1.6} fill="var(--mark)" />
+          <text x={x(o2) + (o2 > 80 ? -10 : 10)} y={y(psi) - 9} textAnchor={o2 > 80 ? "end" : "start"} fontSize={10} fill="var(--mark)" className="mono">
+            {tr("DESIGN {o2}% · {psi} PSI", { o2, psi })}
           </text>
         </g>
       </svg>
@@ -119,23 +121,23 @@ export function EvidenceMap({
         {(["solid", "liquid", "gas"] as PhaseGroup[]).map((g) => (
           <span key={g} className="label flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: COLOR[g] }} />
-            {g === "solid" ? "solid material" : g === "liquid" ? "liquid droplet" : "gas flame"}
+            {g === "solid" ? tr("solid material") : g === "liquid" ? tr("liquid droplet") : tr("gas flame")}
           </span>
         ))}
         <span className="label flex items-center gap-1.5">
-          <span className="inline-block h-2 w-2 rounded-full border border-white/70" />
-          ring = test day or planned range
+          <span className="inline-block h-2 w-2 rounded-full border border-mark/70" />
+          {tr("ring = test day or planned range")}
         </span>
-        <span className="label ml-auto">{points.length} placed · {unplaced} lack oxygen or pressure · click the map to move the design</span>
+        <span className="label ml-auto">{tr("{placed} placed · {unplaced} lack oxygen or pressure · click the map to move the design", { placed: points.length, unplaced })}</span>
       </div>
 
       {hover && (
         <div className="panel pointer-events-none absolute left-16 top-3 max-w-[420px] px-3 py-2 text-[12px]">
           <div className="label mb-1" style={{ color: COLOR[phaseGroup(hover.fuel_phase)] }}>
-            {hover.acronym} · {hover.granularity}
+            {hover.acronym} · {tr(hover.granularity)}
           </div>
           {describeTest(hover)}
-          {hover.assumed.length > 0 && <div className="mt-1 text-[11px] text-dim">Assumed: {hover.assumed[0]}</div>}
+          {hover.assumed.length > 0 && <div className="mt-1 text-[11px] text-dim">{tr("Assumed: {note}", { note: hover.assumed[0] })}</div>}
         </div>
       )}
     </div>

@@ -4,6 +4,8 @@
 // Code generated with SI assistance (Claude Code).
 
 import { useEffect, useRef } from "react";
+import { VOICE_CSS, hairline, isLight, voiceRgb } from "@/lib/theme";
+import { useT } from "@/lib/useControl";
 
 export type VoiceState = "idle" | "connecting" | "listening" | "hearing" | "querying" | "speaking";
 
@@ -19,6 +21,7 @@ const LOOK: Record<VoiceState, { color: string; base: number; speed: number; lab
 export function VoiceWave({ state, level }: { state: VoiceState; level: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const live = useRef({ state, level });
+  const t = useT();
 
   useEffect(() => {
     live.current = { state, level };
@@ -32,7 +35,7 @@ export function VoiceWave({ state, level }: { state: VoiceState; level: number }
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let raf = 0;
     let amp = 0.02;
-    let t = 0;
+    let time = 0;
     let last = performance.now();
 
     const draw = (now: number) => {
@@ -53,10 +56,10 @@ export function VoiceWave({ state, level }: { state: VoiceState; level: number }
       // Speaking follows the real output level; other states use a fixed amplitude.
       const target = s === "speaking" ? look.base + Math.min(1, lv) * 0.7 : look.base;
       amp += (target - amp) * Math.min(1, dt * 9);
-      t += dt * look.speed;
+      time += dt * look.speed;
 
       // centre line and ticks, like a scope graticule
-      ctx.strokeStyle = "rgba(190,225,255,0.14)";
+      ctx.strokeStyle = hairline(0.14);
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(0, h / 2);
@@ -77,14 +80,16 @@ export function VoiceWave({ state, level }: { state: VoiceState; level: number }
         for (let x = 0; x <= w; x += 2) {
           const u = x / w;
           const envelope = Math.sin(Math.PI * u) ** 1.6; // pinned at both ends
-          const y = h / 2 + Math.sin(u * Math.PI * 2 * 2.2 * L.k + t * 2 * L.f) * Math.sin(u * 5 * L.k - t * L.f) * envelope * amp * L.a * (h / 2 - 4) * 1.6;
+          const y = h / 2 + Math.sin(u * Math.PI * 2 * 2.2 * L.k + time * 2 * L.f) * Math.sin(u * 5 * L.k - time * L.f) * envelope * amp * L.a * (h / 2 - 4) * 1.6;
           if (x === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         }
-        ctx.strokeStyle = look.color;
+        // On the light field the wave uses the deep ink for that state.
+        const stroke = isLight() ? `rgb(${voiceRgb(s, [13, 27, 40]).join(",")})` : look.color;
+        ctx.strokeStyle = stroke;
         ctx.globalAlpha = L.alpha;
         ctx.lineWidth = L.width;
-        ctx.shadowColor = look.color;
+        ctx.shadowColor = stroke;
         ctx.shadowBlur = L.alpha === 1 && s !== "idle" ? 8 : 0;
         ctx.stroke();
       }
@@ -102,15 +107,16 @@ export function VoiceWave({ state, level }: { state: VoiceState; level: number }
   }, []);
 
   const look = LOOK[state];
+  const tint = VOICE_CSS[state];
   return (
-    <div className="relative mt-2 border border-line bg-black/30">
+    <div className="relative mt-2 border border-line bg-mark/5">
       <canvas ref={canvasRef} className="block h-[72px] w-full" aria-hidden />
       <div className="pointer-events-none absolute inset-x-2 top-1 flex items-center justify-between">
-        <span className="mono flex items-center gap-1.5 text-[9.5px] uppercase tracking-[0.16em]" style={{ color: state === "idle" ? "var(--ink-faint)" : look.color }} role="status">
-          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: state === "idle" ? "var(--ink-faint)" : look.color, boxShadow: state === "idle" ? undefined : `0 0 6px ${look.color}` }} />
-          {look.label}
+        <span className="mono flex items-center gap-1.5 text-[9.5px] uppercase tracking-[0.16em]" style={{ color: state === "idle" ? "var(--ink-faint)" : tint }} role="status">
+          <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: state === "idle" ? "var(--ink-faint)" : tint, boxShadow: state === "idle" ? undefined : `0 0 6px ${tint}` }} />
+          {t(look.label)}
         </span>
-        <span className="mono text-[9px] uppercase tracking-[0.16em] text-faint">Kukulcan · voice</span>
+        <span className="mono text-[9px] uppercase tracking-[0.16em] text-faint">{t("Kukulcan · voice")}</span>
       </div>
     </div>
   );

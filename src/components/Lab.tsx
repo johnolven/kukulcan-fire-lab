@@ -4,6 +4,11 @@
 // click), and the ranking plus the voice console sit on the right.
 // Code generated with SI assistance (Claude Code).
 
+import { ThemeSwitch } from "./ThemeSwitch";
+import { initTheme } from "@/lib/theme";
+import { initLang } from "@/lib/i18n";
+import { LangSwitch } from "./LangSwitch";
+import { VoiceButton } from "./VoiceButton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Brief } from "@/lib/agents";
 import { signal } from "@/lib/activity";
@@ -12,13 +17,14 @@ import { TESTS, gaps as computeGaps, getInvestigation, label, nearestTests, quer
 import type { FileEntry } from "@/lib/types";
 import { PSI_PER_ATM } from "@/lib/types";
 import { CONTROLS, controls, setTableState, type ActionId, type ControlId } from "@/lib/controls";
-import { useControl } from "@/lib/useControl";
+import { useControl, useT } from "@/lib/useControl";
 import type { UiAction } from "@/lib/voiceTools";
 import { AnalyticsView, requestChart } from "./AnalyticsView";
 import { EnvironmentDrawing } from "./Diagrams";
 import { EvidenceMap } from "./EvidenceMap";
 import { FlameBench } from "./FlameBench";
 import { FloatingDock } from "./FloatingDock";
+import { IntroScreen, type StartId } from "./IntroScreen";
 import { LabView } from "./LabView";
 import { LibraryView, requestAsk, requestWatch } from "./LibraryView";
 import { EnvironmentModel } from "./Models3D";
@@ -76,12 +82,13 @@ const clampCol = (w: number) => Math.min(620, Math.max(200, Math.round(w)));
 
 function Resizer({ label: name, width, direction, fallback, onChange, onCommit }: { label: string; width: number; direction: 1 | -1; fallback: number; onChange: (w: number) => void; onCommit: () => void }) {
   const drag = useRef<{ x: number; start: number } | null>(null);
+  const t = useT();
   return (
     <div
       role="separator"
       aria-orientation="vertical"
       aria-label={name}
-      title="Drag to resize · double-click to reset"
+      title={t("Drag to resize · double-click to reset")}
       className="group hidden cursor-col-resize touch-none select-none items-center justify-center lg:flex"
       onPointerDown={(e) => {
         drag.current = { x: e.clientX, start: width };
@@ -100,7 +107,7 @@ function Resizer({ label: name, width, direction, fallback, onChange, onCommit }
         onCommit();
       }}
     >
-      <span className="h-12 w-[3px] rounded-full bg-white/15 transition-colors group-hover:bg-accent group-active:bg-accent" />
+      <span className="h-12 w-[3px] rounded-full bg-mark/15 transition-colors group-hover:bg-accent group-active:bg-accent" />
     </div>
   );
 }
@@ -110,6 +117,9 @@ const PHASES: [PhaseGroup, string][] = [
   ["liquid", "Liquid fuels"],
   ["gas", "Gas flames"],
 ];
+
+// Label of the fuel filter shown above the test records.
+const PHASE_FUELS: Record<string, string> = { solid: "solid fuels", liquid: "liquid fuels", gas: "gas fuels" };
 
 export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
   const [envId, setEnvId] = useState("base");
@@ -121,6 +131,11 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
   const [view, setView] = useState<View>("fire");
   const [brief, setBrief] = useState<Brief | null>(null);
   const [briefLoading, setBriefLoading] = useState(false);
+  const [intro, setIntro] = useState(true);
+  const t = useT();
+  // welcome screen shown on load
+  useEffect(() => initTheme(), []);
+  useEffect(() => initLang(), []);
   const [drawing, setDrawing] = useControl<"3d" | "2d">("env.drawing");
 
   // Side columns: drag the bar between a column and the stage to resize it.
@@ -131,7 +146,7 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
   const [voiceMode, setVoiceMode] = useControl<"docked" | "floating">("layout.voice");
   const voiceFloating = voiceMode === "floating";
   useEffect(() => {
-    const t = window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       try {
         const saved = JSON.parse(window.localStorage.getItem("firelab:cols-v2") ?? "null");
         if (saved && typeof saved.left === "number" && typeof saved.right === "number") {
@@ -142,7 +157,7 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
         /* keep defaults */
       }
     }, 0);
-    return () => window.clearTimeout(t);
+    return () => window.clearTimeout(timer);
   }, [setLeftW, setRightW]);
   const saveCols = useCallback(() => {
     try {
@@ -157,10 +172,13 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
   const target = useMemo(() => ({ o2_pct: o2, pressure_atm: psi / PSI_PER_ATM }), [o2, psi]);
 
   const stats = useMemo(() => computeStats(), []);
-  const ranked = useMemo(() => rankInvestigations(target), [target]);
+  // t is a dependency so the generated text follows the language switch
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const ranked = useMemo(() => rankInvestigations(target), [target, t]);
   const scores = useMemo(() => new Map(ranked.map((r) => [r.investigation.accession, r.score])), [ranked]);
   const nearestIds = useMemo(() => new Set(nearestTests(target, 8).map((n) => n.item.id)), [target]);
-  const gapList = useMemo(() => computeGaps(target), [target]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const gapList = useMemo(() => computeGaps(target), [target, t]);
   const filtered = useMemo(() => queryTests({ phase: phase || undefined, material: material || undefined }), [phase, material]);
   const selectedInv = selected ? getInvestigation(selected) : undefined;
 
@@ -177,15 +195,17 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
           g,
           name,
           tone: within > 0 ? "ok" : "danger",
-          headline: within > 0 ? `Tested near here · ${within} record${within === 1 ? "" : "s"}` : "Never tested near here",
+          headline: within > 0 ? (within === 1 ? t("Tested near here · {n} record", { n: within }) : t("Tested near here · {n} records", { n: within })) : t("Never tested near here"),
           detail: !first
-            ? "No record carries an oxygen value"
+            ? t("No record carries an oxygen value")
             : within > 0
-              ? `Closest: ${what} at ${firstO2}% oxygen`
-              : `Closest is ${what} at ${firstO2}% oxygen, ${Math.abs(o2 - firstO2).toFixed(1)} points ${o2 > firstO2 ? "below" : "above"} this design`,
+              ? t("Closest: {what} at {o2}% oxygen", { what, o2: firstO2 })
+              : o2 > firstO2
+                ? t("Closest is {what} at {o2}% oxygen, {d} points below this design", { what, o2: firstO2, d: Math.abs(o2 - firstO2).toFixed(1) })
+                : t("Closest is {what} at {o2}% oxygen, {d} points above this design", { what, o2: firstO2, d: Math.abs(o2 - firstO2).toFixed(1) }),
         };
       }),
-    [target, o2],
+    [target, o2, t],
   );
 
   const pickEnv = useCallback((id: string) => {
@@ -226,6 +246,7 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
   // every request changes what the stage shows.
   const onAction = useCallback(
     (a: UiAction) => {
+      setIntro(false);
       const s = (v: unknown) => (typeof v === "string" ? v : "");
       const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() && Number.isFinite(+v) ? +v : undefined);
       switch (a.tool) {
@@ -306,19 +327,46 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
     setTableState({ environment: envId, oxygen_pct: o2, pressure_psi: psi, stage_view: view, fuel_filter: phase || null, material_filter: material || null, open_investigation: view === "detail" ? selected : null });
   }, [envId, o2, psi, view, phase, material, selected]);
 
+  // the five starting points of the welcome screen
+  const start = useCallback(
+    (id: StartId) => {
+      if (id === "materials") setView("materials");
+      else if (id === "lab") {
+        controls.set("lab.case", "cabin");
+        setView("lab");
+      } else {
+        pickEnv(id);
+        setView("environment");
+      }
+      setIntro(false);
+    },
+    [pickEnv],
+  );
+
   const current = VIEWS.find(([v]) => v === view);
 
   return (
     <div className="flex min-h-screen flex-col px-3 pb-2 pt-2 lg:h-screen lg:overflow-hidden lg:px-4">
+      {/* phones and tablets: the voice is far down the page, so a bar pinned to the top keeps it one tap away */}
+      <div className="sticky top-0 z-30 -mx-3 mb-2 flex items-center gap-2 border-b border-line px-3 py-2 lg:hidden" style={{ background: "var(--surface)" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/kukulcan.svg" alt="Kukulcan Space" className="logo h-7 w-auto shrink-0" />
+        <div className="min-w-0 truncate text-[15px] font-light leading-none tracking-tight">Kukulcan <span className="text-accent">Fire Lab</span></div>
+        <button type="button" className="btn ml-auto !min-h-[40px] !px-3" onClick={() => document.getElementById("voice-console")?.scrollIntoView({ behavior: "smooth", block: "start" })} title={t("Go to the conversation")}>{t("Chat")}</button>
+        <VoiceButton size="sm" />
+      </div>
+
       {/* header with the dataset numbers on one line */}
-      <header className="flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-line pb-2">
-        <div>
-          <div className="label !text-[9px]">Project Swarm Mind Kukulcan · NASA Space Apps 2026 · Flame in Freefall</div>
+      <header className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-line pb-2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/kukulcan.svg" alt="Kukulcan Space" className="logo hidden h-9 w-auto shrink-0 lg:block" />
+        <div className="hidden lg:block">
+          <div className="label !text-[9px]">NASA Space Apps 2026 · Flame in Freefall</div>
           <h1 className="text-[21px] font-light leading-none tracking-tight">
             Kukulcan <span className="text-accent">Fire Lab</span>
           </h1>
         </div>
-        <dl className="ml-auto flex flex-wrap items-end gap-x-5 gap-y-1" aria-label="Dataset metrics">
+        <dl className="grid w-full grid-cols-3 items-end gap-x-3 gap-y-2 sm:flex sm:w-auto sm:flex-wrap sm:gap-x-5 sm:gap-y-1 lg:ml-auto" aria-label={t("Dataset metrics")}>
           {[
             [stats.investigations, "investigations"],
             [stats.records.toLocaleString(), "harmonized records"],
@@ -330,30 +378,34 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
           ].map(([v, k, alert]) => (
             <div key={String(k)} className="leading-none">
               <dd className="mono text-[17px]" style={{ color: alert ? "var(--danger)" : undefined }}>{v}</dd>
-              <dt className="label mt-1 !text-[8.5px]">{k}</dt>
+              <dt className="label mt-1 !text-[8.5px]">{t(String(k))}</dt>
             </div>
           ))}
         </dl>
+        <div className="flex shrink-0 items-center gap-4">
+          <LangSwitch />
+          <ThemeSwitch />
+        </div>
       </header>
 
       <div
-        className={`mt-2 grid min-h-0 flex-1 gap-y-2 lg:grid-rows-[minmax(0,1fr)] ${voiceFloating ? "lg:grid-cols-[var(--lw)_10px_minmax(0,1fr)]" : "lg:grid-cols-[var(--lw)_10px_minmax(0,1fr)_10px_var(--rw)]"}`}
+        className={`mt-2 grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] gap-y-2 lg:grid-rows-[minmax(0,1fr)] ${voiceFloating ? "lg:grid-cols-[var(--lw)_10px_minmax(0,1fr)]" : "lg:grid-cols-[var(--lw)_10px_minmax(0,1fr)_10px_var(--rw)]"}`}
         // side columns never squeeze the stage below about 40% of the window
         style={{ "--lw": `min(${cols.left}px, 28vw)`, "--rw": `min(${cols.right}px, 32vw)` } as React.CSSProperties}
       >
         {/* left: the environment on the table, always visible */}
         <aside className="panel scroll flex min-h-0 flex-col p-3" style={{ overflowX: "hidden" }}>
-          <div className="label">Environment on the table</div>
+          <div className="label">{t("Environment on the table")}</div>
           <div className="mt-2 grid grid-cols-3 gap-1.5">
             {ENVIRONMENTS.map((e) => (
-              <button key={e.id} onClick={() => pickEnv(e.id)} aria-pressed={envId === e.id} className={`border px-1 pb-1 pt-0.5 text-center transition-colors hover:border-accent ${envId === e.id ? "border-accent bg-white/[0.05] text-accent" : "border-line text-dim"}`}>
+              <button key={e.id} onClick={() => pickEnv(e.id)} aria-pressed={envId === e.id} className={`border px-1 pb-1 pt-0.5 text-center transition-colors hover:border-accent ${envId === e.id ? "border-accent bg-mark/[0.05] text-accent" : "border-line text-dim"}`}>
                 <EnvironmentDrawing id={e.id} notes={false} className="h-[40px] w-full" />
-                <span className="mono block text-[8.5px] tracking-[0.14em]">{e.short}</span>
+                <span className="mono block text-[8.5px] tracking-[0.14em]">{t(e.short)}</span>
               </button>
             ))}
           </div>
           <div className="relative mt-1 flex min-h-[130px] flex-1 flex-col">
-            <div className="absolute right-0 top-0 z-10 flex gap-1" role="tablist" aria-label="Drawing type">
+            <div className="absolute right-0 top-0 z-10 flex gap-1" role="tablist" aria-label={t("Drawing type")}>
               {(["3d", "2d"] as const).map((d) => (
                 <button key={d} role="tab" aria-selected={drawing === d} className={`btn !px-2 !py-0.5 !text-[10px] ${drawing === d ? "on" : ""}`} onClick={() => setDrawing(d)}>
                   {d.toUpperCase()}
@@ -363,52 +415,52 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
             {drawing === "3d" ? (
               <>
                 <EnvironmentModel id={envId} className="min-h-0 w-full flex-1" />
-                <span className="mono pointer-events-none absolute bottom-0 left-0 text-[8.5px] uppercase tracking-[0.14em] text-faint">Drag to turn</span>
+                <span className="mono pointer-events-none absolute bottom-0 left-0 text-[8.5px] uppercase tracking-[0.14em] text-faint">{t("Drag to turn")}</span>
               </>
             ) : (
               <EnvironmentDrawing id={envId} className="min-h-0 w-full flex-1 text-ink" />
             )}
           </div>
           <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[15px] font-medium">{env.name}</span>
-            <span className="label text-right">{env.gravity}</span>
+            <span className="text-[15px] font-medium">{t(env.name)}</span>
+            <span className="label text-right">{t(env.gravity)}</span>
           </div>
-          <p className="mt-1 text-[12px] leading-snug text-dim">{env.concern}</p>
+          <p className="mt-1 text-[12px] leading-snug text-dim">{t(env.concern)}</p>
 
           <div className="mt-2 space-y-1 border-t border-line pt-2">
             <label className="block">
-              <span className="label flex justify-between"><span>Oxygen</span><span className="text-[13px] text-ink">{o2}%</span></span>
+              <span className="label flex justify-between"><span>{t("Oxygen")}</span><span className="text-[13px] text-ink">{o2}%</span></span>
               <input type="range" min={10} max={100} step={0.5} value={o2} onChange={(e) => setO2(+e.target.value)} />
             </label>
             <label className="block">
-              <span className="label flex justify-between"><span>Pressure</span><span className="text-[13px] text-ink">{psi} psi · {(psi / PSI_PER_ATM).toFixed(2)} atm</span></span>
+              <span className="label flex justify-between"><span>{t("Pressure")}</span><span className="text-[13px] text-ink">{psi} psi · {(psi / PSI_PER_ATM).toFixed(2)} atm</span></span>
               <input type="range" min={3} max={45} step={0.1} value={psi} onChange={(e) => setPsi(+e.target.value)} />
             </label>
             <div className="text-[11px] leading-snug text-dim">
               <span className="mono mr-1.5 border border-line px-1 py-px text-[9px] uppercase tracking-widest" style={{ color: custom ? "var(--warn)" : env.basis === "challenge" ? "var(--ok)" : undefined }}>
-                {custom ? "custom" : env.basis === "challenge" ? "from the challenge" : "preset"}
+                {custom ? t("custom") : env.basis === "challenge" ? t("from the challenge") : t("preset")}
               </span>
-              {custom ? "You moved the atmosphere away from the preset." : env.basisNote}
-              {custom && <button className="ml-1 underline underline-offset-2 hover:text-accent" onClick={() => pickEnv(envId)}>Reset</button>}
+              {custom ? t("You moved the atmosphere away from the preset.") : t(env.basisNote)}
+              {custom && <button className="ml-1 underline underline-offset-2 hover:text-accent" onClick={() => pickEnv(envId)}>{t("Reset")}</button>}
             </div>
           </div>
         </aside>
 
-        <Resizer label="Resize the environment panel" width={cols.left} direction={1} fallback={292} onChange={setLeftW} onCommit={saveCols} />
+        <Resizer label={t("Resize the environment panel")} width={cols.left} direction={1} fallback={292} onChange={setLeftW} onCommit={saveCols} />
 
         {/* centre: verdict + the stage */}
         <main className="flex min-h-0 min-w-0 flex-col gap-2">
-          <section className="grid gap-2 sm:grid-cols-3" aria-label="Has this atmosphere been tested?">
+          <section className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-3" aria-label={t("Has this atmosphere been tested?")}>
             {verdicts.map((v) => (
               <button
                 key={v.g}
-                className="panel px-3 py-2 text-left transition-colors hover:border-accent"
+                className="panel min-w-0 px-3 py-2 text-left transition-colors hover:border-accent"
                 onClick={() => { setPhase(v.g); setMaterial(""); setView("map"); }}
-                title="Show these records on the evidence map"
+                title={t("Show these records on the evidence map")}
               >
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2 w-2 rounded-full" style={{ background: `var(--${v.g})` }} />
-                  <span className="label">{v.name}</span>
+                  <span className="label">{t(v.name)}</span>
                   <span className="mono ml-auto whitespace-nowrap text-[9.5px] text-faint">{o2}% O₂ · {psi} psi</span>
                 </div>
                 <div className="mt-1 text-[14.5px] font-medium leading-tight" style={{ color: v.tone === "ok" ? "var(--ok)" : "var(--danger)" }}>{v.headline}</div>
@@ -418,41 +470,41 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
           </section>
 
           <section className="panel flex min-h-0 flex-1 flex-col">
-            <nav className="flex flex-wrap items-center gap-1 border-b border-line px-2 py-1.5" role="tablist" aria-label="Stage views">
+            <nav className="flex flex-wrap items-center gap-1 border-b border-line px-2 py-1.5" role="tablist" aria-label={t("Stage views")}>
               {VIEWS.map(([v, name]) => (
                 <button key={v} role="tab" aria-selected={view === v} className={`btn !px-2.5 !py-1 ${view === v ? "on" : ""}`} onClick={() => setView(v)}>
-                  {name}
+                  {t(name)}
                 </button>
               ))}
               {view === "detail" && selectedInv && <span className="btn on !px-2.5 !py-1">{label(selectedInv)}</span>}
-              <span className="ml-auto hidden truncate pl-2 text-[11.5px] text-dim xl:block">{view === "detail" ? "Investigation detail" : current?.[2]}</span>
+              <span className="ml-auto hidden truncate pl-2 text-[11.5px] text-dim xl:block">{view === "detail" ? t("Investigation detail") : current ? t(current[2]) : undefined}</span>
             </nav>
 
             <div className="scroll stage min-h-0 flex-1 p-3" role="tabpanel">
               {view === "environment" && (
                 <div className="grid h-full min-h-[420px] gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(260px,1fr)]">
                   <div className="relative min-h-[300px] border border-line">
-                    <div className="absolute right-2 top-2 z-10 flex gap-1" role="tablist" aria-label="Drawing type">
+                    <div className="absolute right-2 top-2 z-10 flex gap-1" role="tablist" aria-label={t("Drawing type")}>
                       {(["3d", "2d"] as const).map((d) => (
                         <button key={d} role="tab" aria-selected={drawing === d} className={`btn !px-2 !py-0.5 !text-[10px] ${drawing === d ? "on" : ""}`} onClick={() => setDrawing(d)}>{d.toUpperCase()}</button>
                       ))}
                     </div>
                     {drawing === "3d" ? <EnvironmentModel id={envId} className="absolute inset-0" /> : <EnvironmentDrawing id={envId} className="absolute inset-0 h-full w-full p-6 text-ink" />}
-                    <span className="mono pointer-events-none absolute bottom-2 left-2 text-[9px] uppercase tracking-[0.14em] text-faint">{drawing === "3d" ? "Drag to turn · schematic, not to scale" : "Schematic, not to scale"}</span>
+                    <span className="mono pointer-events-none absolute bottom-2 left-2 text-[9px] uppercase tracking-[0.14em] text-faint">{drawing === "3d" ? t("Drag to turn · schematic, not to scale") : t("Schematic, not to scale")}</span>
                   </div>
                   <div className="min-w-0 space-y-3">
                     <div>
-                      <div className="label">{env.gravity}</div>
-                      <h2 className="text-[20px] font-medium leading-tight">{env.name}</h2>
-                      <p className="mt-1 text-[13px] leading-relaxed text-dim">{env.concern}</p>
+                      <div className="label">{t(env.gravity)}</div>
+                      <h2 className="text-[20px] font-medium leading-tight">{t(env.name)}</h2>
+                      <p className="mt-1 text-[13px] leading-relaxed text-dim">{t(env.concern)}</p>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div><div className="label">Oxygen</div><div className="mono text-[20px]">{o2}%</div></div>
-                      <div><div className="label">Pressure</div><div className="mono text-[20px]">{psi} psi</div></div>
+                      <div><div className="label">{t("Oxygen")}</div><div className="mono text-[20px]">{o2}%</div></div>
+                      <div><div className="label">{t("Pressure")}</div><div className="mono text-[20px]">{psi} psi</div></div>
                     </div>
-                    <p className="text-[11.5px] leading-snug text-dim">{custom ? "Custom atmosphere: you moved it away from the preset." : env.basisNote}</p>
+                    <p className="text-[11.5px] leading-snug text-dim">{custom ? t("Custom atmosphere: you moved it away from the preset.") : t(env.basisNote)}</p>
                     <div>
-                      <div className="label mb-1">Most relevant investigations here</div>
+                      <div className="label mb-1">{t("Most relevant investigations here")}</div>
                       {ranked.slice(0, 4).map((r) => (
                         <button key={r.investigation.accession} className="flex w-full items-baseline gap-2 border-b border-line py-1 text-left text-[12.5px] hover:text-accent" onClick={() => openInvestigation(r.investigation.accession)}>
                           <span className="font-medium">{label(r.investigation)}</span>
@@ -462,7 +514,7 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
                       ))}
                     </div>
                     <div>
-                      <div className="label mb-1">What is untested for this cabin</div>
+                      <div className="label mb-1">{t("What is untested for this cabin")}</div>
                       {gapList.slice(0, 3).map((g) => (
                         <div key={g.title} className="mb-1 border-l-2 pl-2 text-[12.5px] leading-snug" style={{ borderColor: g.severity === "critical" ? "var(--danger)" : "var(--warn)" }}>{g.title}</div>
                       ))}
@@ -492,8 +544,8 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
               {view === "ranking" && (
                 <div>
                   <div className="mb-2 flex flex-wrap items-baseline gap-x-3">
-                    <h2 className="text-[16px] font-medium">Investigations ranked for this design</h2>
-                    <span className="text-[12.5px] text-dim">Scored out of 100 for {o2}% oxygen at {psi} psi. Click one to open it.</span>
+                    <h2 className="text-[16px] font-medium">{t("Investigations ranked for this design")}</h2>
+                    <span className="text-[12.5px] text-dim">{t("Scored out of 100 for {o2}% oxygen at {psi} psi. Click one to open it.", { o2, psi })}</span>
                   </div>
                   <Ranking ranked={ranked} onOpen={openInvestigation} selected={selected} />
                 </div>
@@ -503,17 +555,17 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
               {view === "map" && (
                 <div>
                   <div className="mb-1 flex flex-wrap items-center gap-2">
-                    <span className="text-[12.5px] text-dim">Each dot is a real test, placed by its oxygen and pressure. If your design (white ring) sits in empty space, nobody has burned anything there.</span>
+                    <span className="text-[12.5px] text-dim">{t("Each dot is a real test, placed by its oxygen and pressure. If your design (the ring) sits in empty space, nobody has burned anything there.")}</span>
                     <span className="ml-auto flex gap-1.5">
                       {[["", "All"], ["solid", "Solids"], ["liquid", "Liquids"], ["gas", "Gases"]].map(([v, name]) => (
-                        <button key={v} className="btn !px-2 !py-1" aria-pressed={phase === v} onClick={() => setPhase(v)}>{name}</button>
+                        <button key={v} className="btn !px-2 !py-1" aria-pressed={phase === v} onClick={() => setPhase(v)}>{t(name)}</button>
                       ))}
                     </span>
                   </div>
                   {material && (
                     <div className="label mb-1">
-                      Material filter: <span className="text-accent">{material}</span>
-                      <button className="ml-2 underline underline-offset-2" onClick={() => setMaterial("")}>clear</button>
+                      {t("Material filter:")} <span className="text-accent">{material}</span>
+                      <button className="ml-2 underline underline-offset-2" onClick={() => setMaterial("")}>{t("clear")}</button>
                     </div>
                   )}
                   <div className="mx-auto" style={{ maxWidth: "calc((100vh - 330px) * 1.55)" }}>
@@ -527,8 +579,8 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
                 <div>
                   {(phase || material) && (
                     <div className="label mb-2">
-                      Filtered to {[phase && `${phase} fuels`, material].filter(Boolean).join(" · ")}
-                      <button className="ml-2 underline underline-offset-2 hover:text-accent" onClick={() => { setPhase(""); setMaterial(""); }}>clear</button>
+                      {t("Filtered to {what}", { what: [phase && (PHASE_FUELS[phase] ? t(PHASE_FUELS[phase]) : t("{phase} fuels", { phase })), material].filter(Boolean).join(" · ") })}
+                      <button className="ml-2 underline underline-offset-2 hover:text-accent" onClick={() => { setPhase(""); setMaterial(""); }}>{t("clear")}</button>
                     </div>
                   )}
                   <TestsTable tests={filtered} total={TESTS.length} />
@@ -536,7 +588,7 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
               )}
               {view === "materials" && <MaterialsTable onFilter={(m) => { setMaterial(m); setPhase(""); setView("tests"); }} />}
               {view === "gaps" && <GapsPanel gaps={gapList} />}
-              {view === "brief" && <BriefPanel brief={brief} loading={briefLoading} onRun={runBrief} hasDesign={`${o2}% oxygen at ${psi} psi${custom ? "" : ` (${env.name})`}`} />}
+              {view === "brief" && <BriefPanel brief={brief} loading={briefLoading} onRun={runBrief} hasDesign={custom ? t("{o2}% oxygen at {psi} psi", { o2, psi }) : t("{o2}% oxygen at {psi} psi ({name})", { o2, psi, name: t(env.name) })} />}
               {view === "detail" && selectedInv && <InvestigationDetail inv={selectedInv} files={files[selectedInv.accession] ?? []} onClose={() => setView("investigations")} />}
 
               {/* Kept mounted so link counts and check results survive view changes. */}
@@ -551,17 +603,20 @@ export function Lab({ files }: { files: Record<string, FileEntry[]> }) {
         </main>
 
         {/* right: the voice. Minimized, it floats over the page and this column closes. */}
-        {!voiceFloating && <Resizer label="Resize the voice panel" width={cols.right} direction={-1} fallback={400} onChange={setRightW} onCommit={saveCols} />}
+        {!voiceFloating && <Resizer label={t("Resize the voice panel")} width={cols.right} direction={-1} fallback={400} onChange={setRightW} onCommit={saveCols} />}
+        <div id="voice-console" className="min-h-0 min-w-0 scroll-mt-[64px] lg:contents" />
         <FloatingDock floating={voiceFloating}>
           <VoiceDock o2={o2} psi={psi} onAction={onAction} floating={voiceFloating} onToggleMode={() => setVoiceMode(voiceFloating ? "docked" : "floating")} />
         </FloatingDock>
       </div>
 
+      {intro && <IntroScreen onChoose={start} onSkip={() => setIntro(false)} />}
+
       <footer
         className="mt-1.5 truncate text-[10.5px] text-faint"
-        title="Records come from the experimental tables of NASA's Physical Sciences Informatics repository, harmonized to common units. The lab reports what was tested; it does not certify any material or design as safe, and PSI holds no partial-gravity data. Code, line drawings and analyst text were produced with SI assistance (Claude); spoken replies are synthetic. Not affiliated with or endorsed by NASA."
+        title={t("Records come from the experimental tables of NASA's Physical Sciences Informatics repository, harmonized to common units. The lab reports what was tested; it does not certify any material or design as safe, and PSI holds no partial-gravity data. Code, line drawings and analyst text were produced with SI assistance (Claude); spoken replies are synthetic. Not affiliated with or endorsed by NASA.")}
       >
-        Data: NASA Physical Sciences Informatics, {stats.investigations_with_tables} experimental tables harmonized · Reports what was tested, never certifies a design as safe · No partial-gravity data in PSI · Code, drawings, analyst text and voice produced with SI (Claude) · Not affiliated with or endorsed by NASA
+        {t("Data: NASA Physical Sciences Informatics, {n} experimental tables harmonized · Reports what was tested, never certifies a design as safe · No partial-gravity data in PSI · Code, drawings, analyst text and voice produced with SI (Claude) · Not affiliated with or endorsed by NASA", { n: stats.investigations_with_tables })}
       </footer>
     </div>
   );

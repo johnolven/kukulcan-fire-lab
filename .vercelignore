@@ -1,0 +1,11 @@
+# Not needed to build the site (the app reads src/data and data/harmonized only)
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+data/psi
+data/context
+video
+*.tsbuildinfo

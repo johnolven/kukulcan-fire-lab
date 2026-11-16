@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { gravityChoice, gravityOf } from "@/lib/controls";
-import { useControl, useControlAction } from "@/lib/useControl";
+import { useControl, useControlAction, useLang, useT } from "@/lib/useControl";
 import { EVENT_LABEL, K, LEVELS, MODEL_NOTE, ZONES, compareResponses, detectionLimit, runScenario, type Actions, type Sample, type ScenarioInput, type ZoneId } from "@/lib/scenario";
 
 const LEVEL_COLOR = ["var(--ok)", "var(--warn)", "#ec835a", "var(--danger)"];
@@ -34,30 +34,31 @@ const SERIES: Series[] = [
 ];
 
 function Strip({ s, samples, events, hover, onHover }: { s: Series; samples: Sample[]; events: { t: number; k: keyof typeof EVENT_LABEL }[]; hover: number | null; onHover: (i: number | null) => void }) {
+  const t = useT();
   const W = 420, H = 104, M = { l: 40, r: 8, t: 8, b: 16 };
   const vals = samples.map((p) => p[s.key] as number);
   const lo = s.key === "x" ? Math.min(...vals, s.limit?.[0] ?? 100) - 1 : 0;
   const hi = Math.max(...vals, (s.limit?.[0] ?? 0) * 1.15, lo + 1) * (s.key === "x" ? 1 : 1.08) + (s.key === "x" ? 1 : 0);
   const tEnd = samples[samples.length - 1].t;
-  const x = (t: number) => M.l + (t / tEnd) * (W - M.l - M.r);
+  const x = (sec: number) => M.l + (sec / tEnd) * (W - M.l - M.r);
   const y = (v: number) => H - M.b - ((v - lo) / (hi - lo)) * (H - M.t - M.b);
   const path = samples.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)} ${y(p[s.key] as number).toFixed(1)}`).join("");
   const h = hover != null ? samples[hover] : null;
   return (
     <div>
       <div className="flex items-baseline justify-between">
-        <span className="label">{s.name}</span>
-        <span className="mono text-[11.5px]">{h ? `${(h[s.key] as number).toFixed(s.digits)} ${s.unit} at ${Math.round(h.t)} s` : `peak ${(s.key === "x" ? Math.min(...vals) : Math.max(...vals)).toFixed(s.digits)} ${s.unit}`}</span>
+        <span className="label">{t(s.name)}</span>
+        <span className="mono text-[11.5px]">{h ? t("{v} {unit} at {t} s", { v: (h[s.key] as number).toFixed(s.digits), unit: s.unit, t: Math.round(h.t) }) : t("peak {v} {unit}", { v: (s.key === "x" ? Math.min(...vals) : Math.max(...vals)).toFixed(s.digits), unit: s.unit })}</span>
       </div>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="w-full"
         role="img"
-        aria-label={`${s.name} over ten minutes`}
+        aria-label={t("{name} over ten minutes", { name: t(s.name) })}
         onMouseMove={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
-          const t = (((e.clientX - r.left) / r.width) * W - M.l) / (W - M.l - M.r);
-          onHover(Math.max(0, Math.min(samples.length - 1, Math.round(t * (samples.length - 1)))));
+          const f = (((e.clientX - r.left) / r.width) * W - M.l) / (W - M.l - M.r);
+          onHover(Math.max(0, Math.min(samples.length - 1, Math.round(f * (samples.length - 1)))));
         }}
         onMouseLeave={() => onHover(null)}
       >
@@ -73,7 +74,7 @@ function Strip({ s, samples, events, hover, onHover }: { s: Series; samples: Sam
         {s.limit && (
           <g>
             <line x1={M.l} x2={W - M.r} y1={y(s.limit[0])} y2={y(s.limit[0])} stroke="var(--danger)" strokeWidth={0.8} strokeDasharray="4 3" />
-            <text x={W - M.r - 2} y={y(s.limit[0]) - 3} textAnchor="end" fontSize={8} fill="var(--danger)" className="mono">{s.limit[1]}</text>
+            <text x={W - M.r - 2} y={y(s.limit[0]) - 3} textAnchor="end" fontSize={8} fill="var(--danger)" className="mono">{t(s.limit[1])}</text>
           </g>
         )}
         {events.map((e, i) => (
@@ -82,8 +83,8 @@ function Strip({ s, samples, events, hover, onHover }: { s: Series; samples: Sam
         <path d={path} fill="none" stroke="var(--accent)" strokeWidth={2} strokeLinejoin="round" />
         {h && (
           <g>
-            <line x1={x(h.t)} x2={x(h.t)} y1={M.t} y2={H - M.b} stroke="#fff" strokeWidth={0.6} opacity={0.6} />
-            <circle cx={x(h.t)} cy={y(h[s.key] as number)} r={4} fill="var(--accent)" stroke="#060c14" strokeWidth={2} />
+            <line x1={x(h.t)} x2={x(h.t)} y1={M.t} y2={H - M.b} stroke="var(--mark)" strokeWidth={0.6} opacity={0.6} />
+            <circle cx={x(h.t)} cy={y(h[s.key] as number)} r={4} fill="var(--accent)" stroke="var(--surface)" strokeWidth={2} />
           </g>
         )}
       </svg>
@@ -98,29 +99,32 @@ function ModuleScene({ sample, crew, peak }: { sample: Sample; crew: "inside" | 
   const haze = Math.min(0.78, sample.co / 2500);
   const heat = Math.min(0.5, Math.max(0, (sample.T - 25) / 500));
   const burning = sample.Q > 0.5;
+  const t = useT();
+  const [theme] = useControl<string>("ui.theme");
+  const light = theme === "light";
   return (
-    <svg viewBox="0 0 520 150" className="w-full" role="img" aria-label="Cross-section of the module during the fire">
+    <svg viewBox="0 0 520 150" className="w-full" role="img" aria-label={t("Cross-section of the module during the fire")}>
       <defs>
         <radialGradient id="scfire" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#fff" stopOpacity={0.95} />
-          <stop offset="40%" stopColor="#ffd27a" stopOpacity={0.85} />
-          <stop offset="100%" stopColor="#ff6a2a" stopOpacity={0} />
+          <stop offset="0%" stopColor={light ? "#ffd27a" : "#fff"} stopOpacity={0.95} />
+          <stop offset="40%" stopColor={light ? "#ff8a2a" : "#ffd27a"} stopOpacity={0.85} />
+          <stop offset="100%" stopColor={light ? "#e0480f" : "#ff6a2a"} stopOpacity={0} />
         </radialGradient>
       </defs>
       <rect x={10} y={22} width={500} height={106} rx={50} fill={`rgba(255,106,42,${heat * 0.45})`} stroke="var(--line-strong)" strokeWidth={1.2} />
-      <rect x={10} y={22} width={500} height={106} rx={50} fill={`rgba(150,160,170,${haze})`} />
+      <rect x={10} y={22} width={500} height={106} rx={50} fill={`rgba(${light ? "70,80,92" : "150,160,170"},${haze})`} />
       {[110, 210, 310, 410].map((xx) => <line key={xx} x1={xx} x2={xx} y1={24} y2={126} stroke="var(--line)" strokeWidth={0.6} />)}
-      <text x={24} y={16} fontSize={8.5} letterSpacing={1.2} fill="var(--ink-dim)" className="mono">SEALED MODULE · 65 M³ · ILLUSTRATION</text>
+      <text x={24} y={16} fontSize={8.5} letterSpacing={1.2} fill="var(--ink-dim)" className="mono">{t("SEALED MODULE · 65 M³ · ILLUSTRATION")}</text>
       {burning && <circle cx={150} cy={78} r={r} fill="url(#scfire)" className="flame" />}
-      <rect x={144} y={74} width={12} height={8} fill="none" stroke="#fff" strokeWidth={0.9} />
+      <rect x={144} y={74} width={12} height={8} fill="none" stroke="var(--mark)" strokeWidth={0.9} />
       {crew !== "gone" ? (
-        <g stroke={crew === "masked" ? "var(--accent)" : "#fff"} strokeWidth={1.4} fill="none" strokeLinecap="round">
+        <g stroke={crew === "masked" ? "var(--accent)" : "var(--mark)"} strokeWidth={1.4} fill="none" strokeLinecap="round">
           <circle cx={372} cy={62} r={8} />
           <path d="M372 70 v24 M372 78 l-12 8 M372 78 l12 8 M372 94 l-9 16 M372 94 l9 16" />
           {crew === "masked" && <path d="M366 62 h12 v6 h-12 z" fill="var(--accent)" stroke="none" />}
         </g>
       ) : (
-        <text x={372} y={82} textAnchor="middle" fontSize={9} letterSpacing={1} fill="var(--ink-dim)" className="mono">CREW OUT</text>
+        <text x={372} y={82} textAnchor="middle" fontSize={9} letterSpacing={1} fill="var(--ink-dim)" className="mono">{t("CREW OUT")}</text>
       )}
       <text x={496} y={144} textAnchor="end" fontSize={9} fill="var(--ink-dim)" className="mono">
         {Math.round(sample.t)} S · {sample.Q.toFixed(0)} KW · O₂ {sample.x.toFixed(1)}% · CO {Math.round(sample.co)} PPM · {Math.round(sample.T)} °C
@@ -130,6 +134,8 @@ function ModuleScene({ sample, crew, peak }: { sample: Sample; crew: "inside" | 
 }
 
 export function ScenarioView({ o2, psi, defaultGravity }: { o2: number; psi: number; defaultGravity: number }) {
+  const t = useT();
+  const lang = useLang();
   const [zone, setZone] = useControl<ZoneId>("scenario.zone");
   const [det, setDet] = useControl<number>("scenario.detection");
   const [gravityPick, setGravityPick] = useControl<string>("scenario.gravity");
@@ -149,7 +155,11 @@ export function ScenarioView({ o2, psi, defaultGravity }: { o2: number; psi: num
   const g = gravityOf(gravityPick, defaultGravity);
 
   const input: ScenarioInput = useMemo(() => ({ p0_kpa: psi * 6.895, x0: o2 / 100, g, zone, det, relief, ...act }), [o2, psi, g, zone, det, relief, act]);
-  const r = useMemo(() => runScenario(input), [input]);
+  // the reasons in the result are text in the current language, so it is rebuilt when the language changes
+  const r = useMemo(() => {
+    void lang;
+    return runScenario(input);
+  }, [input, lang]);
   const ranked = useMemo(() => compareResponses(input), [input]);
   const limit = useMemo(() => detectionLimit(input), [input]);
   const events = useMemo(() => [...r.events].sort((a, b) => a.t - b.t), [r]);
@@ -191,44 +201,44 @@ export function ScenarioView({ o2, psi, defaultGravity }: { o2: number; psi: num
   return (
     <div className="@container">
       <div className="mb-2 flex flex-wrap items-baseline gap-x-3">
-        <h2 className="text-[16px] font-medium">Fire scenarios: what protects the crew</h2>
-        <span className="text-[12.5px] text-dim">A fire starts in a sealed module at {o2}% oxygen and {psi} psi. Pick where, how fast it is detected and what the crew does.</span>
+        <h2 className="text-[16px] font-medium">{t("Fire scenarios: what protects the crew")}</h2>
+        <span className="text-[12.5px] text-dim">{t("A fire starts in a sealed module at {o2}% oxygen and {psi} psi. Pick where, how fast it is detected and what the crew does.", { o2, psi })}</span>
       </div>
 
       <div className="grid gap-4 @[820px]:grid-cols-[290px_minmax(0,1fr)]">
         <div className="space-y-3">
           <div>
-            <div className="label mb-1">Where the fire starts</div>
+            <div className="label mb-1">{t("Where the fire starts")}</div>
             <div className="flex flex-wrap gap-1.5">
               {(Object.keys(ZONES) as ZoneId[]).map((z) => (
-                <button key={z} className="btn !px-2 !py-1" aria-pressed={zone === z} onClick={() => setZone(z)} title={`${ZONES[z].fuel} kg of fuel that can burn`}>{ZONES[z].name}</button>
+                <button key={z} className="btn !px-2 !py-1" aria-pressed={zone === z} onClick={() => setZone(z)} title={t("{kg} kg of fuel that can burn", { kg: ZONES[z].fuel })}>{t(ZONES[z].name)}</button>
               ))}
             </div>
           </div>
           <label className="block">
-            <span className="label flex justify-between"><span>Time to detect</span><span className="text-ink">{det} s</span></span>
+            <span className="label flex justify-between"><span>{t("Time to detect")}</span><span className="text-ink">{det} s</span></span>
             <input type="range" min={10} max={300} step={5} value={det} onChange={(e) => setDet(+e.target.value)} />
           </label>
           <div>
-            <div className="label mb-1">Gravity</div>
+            <div className="label mb-1">{t("Gravity")}</div>
             <div className="flex flex-wrap gap-1.5">
               {GRAVITY.map(([v, name]) => (
-                <button key={v} className="btn !px-2 !py-1" aria-pressed={g === v} onClick={() => setGravity(v)}>{name}</button>
+                <button key={v} className="btn !px-2 !py-1" aria-pressed={g === v} onClick={() => setGravity(v)}>{t(name)}</button>
               ))}
             </div>
           </div>
           <div>
-            <div className="label mb-1">What the crew does</div>
+            <div className="label mb-1">{t("What the crew does")}</div>
             <div className="space-y-1">
               {ACTIONS.map(([k, name, hint]) => (
                 <label key={k} className="flex cursor-pointer items-start gap-2 text-[12.5px] leading-snug">
                   <input type="checkbox" className="mt-[3px] accent-[var(--accent)]" checked={act[k]} onChange={(e) => setAct({ ...act, [k]: e.target.checked })} />
-                  <span><span className="text-ink">{name}</span> <span className="text-[11px] text-dim">{hint}</span></span>
+                  <span><span className="text-ink">{t(name)}</span> <span className="text-[11px] text-dim">{t(hint)}</span></span>
                 </label>
               ))}
               <label className="flex cursor-pointer items-start gap-2 text-[12.5px] leading-snug">
                 <input type="checkbox" className="mt-[3px] accent-[var(--accent)]" checked={relief} onChange={(e) => setRelief(e.target.checked)} />
-                <span><span className="text-ink">Pressure relief valve</span> <span className="text-[11px] text-dim">Vents gas when pressure rises above the starting value.</span></span>
+                <span><span className="text-ink">{t("Pressure relief valve")}</span> <span className="text-[11px] text-dim">{t("Vents gas when pressure rises above the starting value.")}</span></span>
               </label>
             </div>
           </div>
@@ -236,21 +246,21 @@ export function ScenarioView({ o2, psi, defaultGravity }: { o2: number; psi: num
 
         <div className="min-w-0">
           <div className="border-l-2 pl-3" style={{ borderColor: color }}>
-            <div className="label" style={{ color }}>Outcome for the crew</div>
-            <div className="text-[20px] font-medium leading-tight" style={{ color }}>{LEVELS[r.level]}</div>
+            <div className="label" style={{ color }}>{t("Outcome for the crew")}</div>
+            <div className="text-[20px] font-medium leading-tight" style={{ color }}>{t(LEVELS[r.level])}</div>
             <div className="mt-0.5 text-[12.5px] leading-snug text-dim">
-              {r.why.length ? r.why.join(" · ") : "No limit is exceeded with this response."}{" "}
-              {r.outWhy ? `Flame out at ${Math.round(r.outT ?? 0)} s (${{ ext: "extinguisher", o2: "oxygen fell below 14%", fuel: "fuel consumed" }[r.outWhy]}).` : "Still burning at 10 minutes."}
+              {r.why.length ? r.why.join(" · ") : t("No limit is exceeded with this response.")}{" "}
+              {r.outWhy ? t({ ext: "Flame out at {t} s (extinguisher).", o2: "Flame out at {t} s (oxygen fell below 14%).", fuel: "Flame out at {t} s (fuel consumed)." }[r.outWhy], { t: Math.round(r.outT ?? 0) }) : t("Still burning at 10 minutes.")}
             </div>
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-2 @[640px]:grid-cols-5">
             {[
-              ["Peak fire", `${r.peak.toFixed(0)} kW`],
-              ["CO breathed", `${Math.round(r.crew.maxCO)} ppm`],
-              ["Lowest O₂ breathed", `${(100 * r.crew.minX).toFixed(1)}%`],
-              ["Hottest air", `${Math.round(r.tmax)} °C`],
-              ["Highest pressure", `${r.pmax.toFixed(0)} kPa`],
+              [t("Peak fire"), `${r.peak.toFixed(0)} kW`],
+              [t("CO breathed"), `${Math.round(r.crew.maxCO)} ppm`],
+              [t("Lowest O₂ breathed"), `${(100 * r.crew.minX).toFixed(1)}%`],
+              [t("Hottest air"), `${Math.round(r.tmax)} °C`],
+              [t("Highest pressure"), `${r.pmax.toFixed(0)} kPa`],
             ].map(([k, v]) => (
               <div key={k}><div className="label">{k}</div><div className="mono text-[17px]">{v}</div></div>
             ))}
@@ -260,11 +270,11 @@ export function ScenarioView({ o2, psi, defaultGravity }: { o2: number; psi: num
             <ModuleScene sample={scene} crew={crewNow} peak={r.peak} />
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <button className="btn !px-3 !py-1" onClick={() => { if (!playing && (clock == null || clock >= 600)) setClock(0); setPlaying(!playing); }}>
-                {playing ? "Pause" : clock == null || clock >= 600 ? "▶ Play the fire" : "▶ Resume"}
+                {playing ? t("Pause") : clock == null || clock >= 600 ? t("▶ Play the fire") : t("▶ Resume")}
               </button>
-              <input type="range" className="min-w-[120px] flex-1" min={0} max={600} step={5} value={clock ?? 600} onChange={(e) => { setPlaying(false); setClock(+e.target.value); }} aria-label="Time into the fire, seconds" />
+              <input type="range" className="min-w-[120px] flex-1" min={0} max={600} step={5} value={clock ?? 600} onChange={(e) => { setPlaying(false); setClock(+e.target.value); }} aria-label={t("Time into the fire, seconds")} />
               <span className="mono text-[11.5px]">{Math.floor((clock ?? 600) / 60)}:{String(Math.floor((clock ?? 600) % 60)).padStart(2, "0")}</span>
-              <span className="min-w-0 flex-1 truncate text-[12px] text-dim">{clock == null ? "Ten minutes of fire in fifteen seconds." : latest ? `${Math.round(latest.t)} s · ${EVENT_LABEL[latest.k]}` : "Fire growing, not yet detected."}</span>
+              <span className="min-w-0 flex-1 truncate text-[12px] text-dim">{clock == null ? t("Ten minutes of fire in fifteen seconds.") : latest ? `${Math.round(latest.t)} s · ${t(EVENT_LABEL[latest.k])}` : t("Fire growing, not yet detected.")}</span>
             </div>
           </div>
 
@@ -272,19 +282,19 @@ export function ScenarioView({ o2, psi, defaultGravity }: { o2: number; psi: num
             {SERIES.map((s) => <Strip key={s.key} s={s} samples={r.samples} events={events} hover={shown} onHover={setHover} />)}
           </div>
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-dim">
-            {events.map((e, i) => <span key={i}><span className="mono text-faint">{Math.round(e.t)} s</span> {EVENT_LABEL[e.k]}</span>)}
+            {events.map((e, i) => <span key={i}><span className="mono text-faint">{Math.round(e.t)} s</span> {t(EVENT_LABEL[e.k])}</span>)}
           </div>
 
           <div className="mt-4 grid gap-4 @[1040px]:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
             <div>
-              <div className="label mb-1">Compare responses for this case, best first</div>
+              <div className="label mb-1">{t("Compare responses for this case, best first")}</div>
               <table className="data">
-                <thead><tr><th>Response</th><th>Outcome</th><th className="num">Peak kW</th><th className="num">CO ppm</th></tr></thead>
+                <thead><tr><th>{t("Response")}</th><th>{t("Outcome")}</th><th className="num">{t("Peak kW")}</th><th className="num">CO ppm</th></tr></thead>
                 <tbody>
                   {ranked.map(({ plan, result }) => (
                     <tr key={plan.id} className="cursor-pointer" onClick={() => setAct(plan.actions)}>
-                      <td>{plan.name}</td>
-                      <td style={{ color: LEVEL_COLOR[result.level] }}>{LEVELS[result.level]}</td>
+                      <td>{t(plan.name)}</td>
+                      <td style={{ color: LEVEL_COLOR[result.level] }}>{t(LEVELS[result.level])}</td>
                       <td className="num">{result.peak.toFixed(0)}</td>
                       <td className="num">{Math.round(result.crew.maxCO)}</td>
                     </tr>
@@ -294,18 +304,18 @@ export function ScenarioView({ o2, psi, defaultGravity }: { o2: number; psi: num
             </div>
             <div className="space-y-2 text-[12.5px] leading-snug">
               <div>
-                <div className="label">Key to reduce the risk</div>
+                <div className="label">{t("Key to reduce the risk")}</div>
                 {limit != null
-                  ? <p>With this response the crew stays within every limit if the fire is detected within <b className="text-ink">{limit} s</b>.{det > limit ? " Detection here is too slow." : ""}</p>
-                  : <p>Even detected in 10 s, this response is not enough here. The case needs less fuel, a slower-growing material or a different response.</p>}
+                  ? <p>{t("With this response the crew stays within every limit if the fire is detected within")} <b className="text-ink">{limit} s</b>.{det > limit ? ` ${t("Detection here is too slow.")}` : ""}</p>
+                  : <p>{t("Even detected in 10 s, this response is not enough here. The case needs less fuel, a slower-growing material or a different response.")}</p>}
               </div>
-              <p className="text-[11.5px] text-dim">Oxygen changes the answer: growth is scaled by (oxygen / 21%)², so the same fire at {o2}% grows {((o2 / 21) ** 2).toFixed(1)} times as fast as in air. Move the oxygen control on the left to see it.</p>
+              <p className="text-[11.5px] text-dim">{t("Oxygen changes the answer: growth is scaled by (oxygen / 21%)², so the same fire at {o2}% grows {k} times as fast as in air. Move the oxygen control on the left to see it.", { o2, k: ((o2 / 21) ** 2).toFixed(1) })}</p>
             </div>
           </div>
 
           <details className="mt-3 text-[11.5px] leading-relaxed text-dim">
-            <summary className="label cursor-pointer">Where the numbers come from, and what is assumed</summary>
-            <p className="mt-1">{MODEL_NOTE}</p>
+            <summary className="label cursor-pointer">{t("Where the numbers come from, and what is assumed")}</summary>
+            <p className="mt-1">{t(MODEL_NOTE)}</p>
           </details>
         </div>
       </div>

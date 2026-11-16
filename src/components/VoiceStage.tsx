@@ -7,6 +7,9 @@
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { requestVoiceToggle, serverVoiceSnapshot, voiceStore } from "@/lib/voiceStore";
+import { t } from "@/lib/i18n";
+import { VOICE_CSS, hairline, voiceRgb } from "@/lib/theme";
+import { useT } from "@/lib/useControl";
 import type { VoiceState } from "./VoiceWave";
 
 const LOOK: Record<VoiceState, { rgb: [number, number, number]; base: number; speed: number; label: string; hint: string }> = {
@@ -22,6 +25,7 @@ const LOOK: Record<VoiceState, { rgb: [number, number, number]; base: number; sp
 export function VoiceOrb({ className }: { className?: string }) {
   const voice = useSyncExternalStore(voiceStore.subscribe, voiceStore.get, serverVoiceSnapshot);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const t = useT();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -32,7 +36,7 @@ export function VoiceOrb({ className }: { className?: string }) {
     const BARS = 96;
     const bars = new Float32Array(BARS);
     let amp = 0.05;
-    let t = 0;
+    let time = 0;
     let last = performance.now();
     let raf = 0;
     const color: [number, number, number] = [150, 190, 220];
@@ -54,8 +58,9 @@ export function VoiceOrb({ className }: { className?: string }) {
 
       const target = state === "speaking" ? look.base + Math.min(1, level) * 0.66 : look.base;
       amp += (target - amp) * Math.min(1, dt * 8);
-      t += dt * look.speed;
-      for (let i = 0; i < 3; i++) color[i] += (look.rgb[i] - color[i]) * Math.min(1, dt * 6);
+      time += dt * look.speed;
+      const tint = voiceRgb(state, look.rgb);
+      for (let i = 0; i < 3; i++) color[i] += (tint[i] - color[i]) * Math.min(1, dt * 6);
       const rgb = `${color[0] | 0},${color[1] | 0},${color[2] | 0}`;
 
       const cx = w / 2;
@@ -65,7 +70,7 @@ export function VoiceOrb({ className }: { className?: string }) {
 
       // graticule: range rings and cross hairs
       ctx.lineWidth = 1;
-      ctx.strokeStyle = "rgba(190,225,255,0.10)";
+      ctx.strokeStyle = hairline(0.1);
       for (const k of [1.0, 1.55, 2.1, 2.65]) {
         ctx.beginPath();
         ctx.arc(cx, cy, R * k, 0, Math.PI * 2);
@@ -78,7 +83,7 @@ export function VoiceOrb({ className }: { className?: string }) {
       ctx.lineTo(cx, cy + R * 2.9);
       ctx.stroke();
       // degree ticks
-      ctx.strokeStyle = "rgba(190,225,255,0.22)";
+      ctx.strokeStyle = hairline(0.22);
       ctx.beginPath();
       for (let i = 0; i < 72; i++) {
         const a = (i / 72) * Math.PI * 2;
@@ -93,8 +98,8 @@ export function VoiceOrb({ className }: { className?: string }) {
       ctx.lineCap = "round";
       for (let i = 0; i < BARS; i++) {
         const u = i < BARS / 2 ? i / (BARS / 2) : (BARS - i) / (BARS / 2); // 0..1..0
-        const wave = 0.5 + 0.5 * Math.sin(u * 9 + t * 3.1) * Math.sin(u * 4.3 - t * 1.7);
-        const ripple = 0.5 + 0.5 * Math.sin(u * 23 - t * 5.2);
+        const wave = 0.5 + 0.5 * Math.sin(u * 9 + time * 3.1) * Math.sin(u * 4.3 - time * 1.7);
+        const ripple = 0.5 + 0.5 * Math.sin(u * 23 - time * 5.2);
         const goal = amp * (0.25 + 0.75 * wave) * (0.6 + 0.4 * ripple);
         bars[i] += (goal - bars[i]) * Math.min(1, dt * 14);
         const a = (i / BARS) * Math.PI * 2 - Math.PI / 2;
@@ -115,7 +120,7 @@ export function VoiceOrb({ className }: { className?: string }) {
       ctx.shadowBlur = 10;
       for (const [k, start, len, dir] of [[2.1, 0.2, 1.1, 1], [2.1, 3.4, 0.6, 1], [1.55, 1.8, 1.7, -1], [2.65, 4.6, 0.9, -0.5]] as const) {
         ctx.beginPath();
-        ctx.arc(cx, cy, R * k, start + t * 0.35 * dir, start + len + t * 0.35 * dir);
+        ctx.arc(cx, cy, R * k, start + time * 0.35 * dir, start + len + time * 0.35 * dir);
         ctx.stroke();
       }
       ctx.shadowBlur = 0;
@@ -144,7 +149,7 @@ export function VoiceOrb({ className }: { className?: string }) {
         for (let x = -R; x <= R; x += 2) {
           const u = (x + R) / (2 * R);
           const env = Math.sin(Math.PI * u) ** 1.4;
-          const y = Math.sin(u * Math.PI * 2 * 2.4 * f + t * 2.2 * f) * Math.sin(u * 5 * f - t * f) * env * amp * a * R * 1.5;
+          const y = Math.sin(u * Math.PI * 2 * 2.4 * f + time * 2.2 * f) * Math.sin(u * 5 * f - time * f) * env * amp * a * R * 1.5;
           if (x === -R) ctx.moveTo(cx + x, cy + y);
           else ctx.lineTo(cx + x, cy + y);
         }
@@ -169,20 +174,22 @@ export function VoiceOrb({ className }: { className?: string }) {
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />
       {(["tl", "tr", "bl", "br"] as const).map((c) => (
         <span key={c} className="mono pointer-events-none absolute text-[9px] uppercase tracking-[0.18em] text-faint" style={{ [c[0] === "t" ? "top" : "bottom"]: 6, [c[1] === "l" ? "left" : "right"]: 6 }}>
-          {c === "tl" ? "Kukulcan · voice" : c === "tr" ? (voice.live ? "channel open" : "channel closed") : c === "bl" ? `level ${(voice.level * 100).toFixed(0).padStart(2, "0")}` : "NASA PSI"}
+          {c === "tl" ? t("Kukulcan · voice") : c === "tr" ? (voice.live ? t("channel open") : t("channel closed")) : c === "bl" ? t("level {n}", { n: (voice.level * 100).toFixed(0).padStart(2, "0") }) : "NASA PSI"}
         </span>
       ))}
     </div>
   );
 }
 
+/** Label and hint in the current language. Callers re-render on a language change through useT(). */
 export function voiceLook(state: VoiceState) {
   const look = LOOK[state];
-  return { label: look.label, hint: look.hint, css: `rgb(${look.rgb.join(",")})` };
+  return { label: t(look.label), hint: look.hint && t(look.hint), css: VOICE_CSS[state] };
 }
 
 export function VoiceStage() {
   const voice = useSyncExternalStore(voiceStore.subscribe, voiceStore.get, serverVoiceSnapshot);
+  const t = useT(); // also re-renders this component, and so voiceLook, when the language changes
   const { label, hint, css } = voiceLook(voice.state);
   return (
     <div className="relative flex h-full min-h-[440px] flex-col">
@@ -191,16 +198,16 @@ export function VoiceStage() {
           <span className="inline-block h-2 w-2 rounded-full" style={{ background: css, boxShadow: `0 0 8px ${css}` }} />
           {label}
         </span>
-        <span className="mono ml-auto border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim">SI-generated voice</span>
+        <span className="mono ml-auto border border-line px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-dim">{t("SI-generated voice")}</span>
       </div>
       <VoiceOrb className="min-h-0 flex-1" />
       <div className="mx-auto w-full max-w-[760px] text-center">
-        {voice.you && <p className="truncate text-[12.5px] text-accent" title={voice.you}><span className="mono mr-2 text-[9.5px] uppercase tracking-widest text-faint">you</span>{voice.you}</p>}
-        <p className="mt-1 min-h-[44px] text-[16px] leading-snug">{voice.lab || <span className="text-dim">{hint || "The lab answers here."}</span>}</p>
+        {voice.you && <p className="truncate text-[12.5px] text-accent" title={voice.you}><span className="mono mr-2 text-[9.5px] uppercase tracking-widest text-faint">{t("you")}</span>{voice.you}</p>}
+        <p className="mt-1 min-h-[44px] text-[16px] leading-snug">{voice.lab || <span className="text-dim">{hint || t("The lab answers here.")}</span>}</p>
         <div className="mt-2 flex items-center justify-center gap-2 pb-1">
-          <button className={`btn flex items-center gap-2 !px-5 !py-2 ${voice.live ? "on" : ""}`} onClick={requestVoiceToggle} disabled={!voice.available || voice.state === "connecting"} title={voice.available ? "Talk to the lab" : "Live voice needs a Vapi key; typed commands work without it"}>
+          <button className={`btn flex items-center gap-2 !px-5 !py-2 ${voice.live ? "on" : ""}`} onClick={requestVoiceToggle} disabled={!voice.available || voice.state === "connecting"} title={voice.available ? t("Talk to the lab") : t("Live voice needs a Vapi key; typed commands work without it")}>
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: voice.live ? "var(--danger)" : "var(--accent)" }} />
-            {voice.live ? "End call" : voice.state === "connecting" ? "Connecting…" : "Talk to the lab"}
+            {voice.live ? t("End call") : voice.state === "connecting" ? t("Connecting…") : t("Talk to the lab")}
           </button>
         </div>
       </div>

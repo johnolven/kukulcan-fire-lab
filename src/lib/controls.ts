@@ -47,6 +47,8 @@ export const CONTROLS = {
   "cabin.running": { kind: "toggle", view: "lab", label: "Live cabin simulation running", initial: true },
 
   "env.drawing": { kind: "choice", view: "environment", label: "Environment drawing in 3D or 2D", options: ["3d", "2d"], initial: "3d" },
+  "ui.theme": { kind: "choice", view: "layout", label: "Appearance of the whole site: dark or light mode", options: ["dark", "light"], initial: "dark" },
+  "ui.lang": { kind: "choice", view: "layout", label: "Language of the interface: English (en) or Spanish (es)", options: ["en", "es"], initial: "en" },
   "layout.voice": { kind: "choice", view: "layout", label: "Voice panel docked on the right or floating", options: ["docked", "floating"], initial: "docked" },
   "layout.left": { kind: "number", view: "layout", label: "Width of the environment column", min: 200, max: 620, step: 10, unit: "px", initial: 292 },
   "layout.right": { kind: "number", view: "layout", label: "Width of the voice column", min: 200, max: 620, step: 10, unit: "px", initial: 400 },
